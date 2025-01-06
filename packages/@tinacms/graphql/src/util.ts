@@ -1,14 +1,5 @@
 /**
-Copyright 2021 Forestry.io Holdings, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+
 */
 
 import * as yup from 'yup'
@@ -53,7 +44,7 @@ export const sequential = async <A, B>(
   return accum
 }
 
-export function assertShape<T extends unknown>(
+export function assertShape<T>(
   value: unknown,
   yupSchema: (args: typeof yup) => yup.AnySchema,
   errorMessage?: string
@@ -79,3 +70,25 @@ export const btoa = (string: string) => {
 export const lastItem = (arr: (number | string)[]) => {
   return arr[arr.length - 1]
 }
+
+//? Note: https://github.com/you-dont-need/You-Dont-Need-Lodash-Underscore#_get
+//! Replaces _.get()
+export const get = (obj, path, defaultValue = undefined) => {
+  const travel = (regexp) =>
+    String.prototype.split
+      .call(path, regexp)
+      .filter(Boolean)
+      .reduce(
+        (res, key) => (res !== null && res !== undefined ? res[key] : res),
+        obj
+      )
+  const result = travel(/[,[\]]+?/) || travel(/[,[\].]+?/)
+  return result === undefined || result === obj ? defaultValue : result
+}
+
+//? Note: https://github.com/you-dont-need/You-Dont-Need-Lodash-Underscore#_flattendeep
+//! Replaces _.flattenDeep()
+export const flattenDeep = (arr) =>
+  arr.flatMap((subArray, index) =>
+    Array.isArray(subArray) ? flattenDeep(subArray) : subArray
+  )

@@ -1,34 +1,28 @@
-/**
-Copyright 2021 Forestry.io Holdings, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import {
+import type {
   Media,
   MediaList,
   MediaListOptions,
   MediaStore,
   MediaUploadOptions,
-} from '@tinacms/toolkit'
-
+} from 'tinacms'
+import { DEFAULT_MEDIA_UPLOAD_TYPES } from 'tinacms'
 import { E_UNAUTHORIZED, E_BAD_ROUTE, interpretErrorMessage } from './errors'
 
+export type CloudinaryMediaStoreOptions = {
+  baseUrl?: string
+}
+
 export class CloudinaryMediaStore implements MediaStore {
-  fetchFunction = (input: RequestInfo, init?: RequestInit) => {
-    return fetch(input, init)
+  baseUrl: string
+  constructor(options?: CloudinaryMediaStoreOptions) {
+    this.baseUrl = options?.baseUrl || '/api/cloudinary/media'
   }
-  accept = 'text/*,  application/*, image/*'
+  fetchFunction = (input: RequestInfo, init?: RequestInit) => fetch(input, init)
+
+  accept = DEFAULT_MEDIA_UPLOAD_TYPES
 
   async persist(media: MediaUploadOptions[]): Promise<Media[]> {
-    let newFiles: Media[] = []
+    const newFiles: Media[] = []
 
     for (const item of media) {
       const { file, directory } = item
@@ -37,7 +31,7 @@ export class CloudinaryMediaStore implements MediaStore {
       formData.append('directory', directory)
       formData.append('filename', file.name)
 
-      const res = await this.fetchFunction(`/api/cloudinary/media`, {
+      const res = await this.fetchFunction(this.baseUrl, {
         method: 'POST',
         body: formData,
       })
@@ -65,7 +59,12 @@ export class CloudinaryMediaStore implements MediaStore {
         id: fileRes.public_id,
         filename: fileRes.original_filename,
         directory: '/',
-        previewSrc: fileRes.url,
+        thumbnails: {
+          '75x75': fileRes.secure_url,
+          '400x400': fileRes.secure_url,
+          '1000x1000': fileRes.secure_url,
+        },
+        src: fileRes.secure_url,
       }
 
       newFiles.push(parsedRes)
@@ -74,7 +73,7 @@ export class CloudinaryMediaStore implements MediaStore {
   }
   async delete(media: Media) {
     await this.fetchFunction(
-      `/api/cloudinary/media/${encodeURIComponent(media.id)}`,
+      `${this.baseUrl}/${encodeURIComponent(media.id)}`,
       {
         method: 'DELETE',
       }
@@ -82,7 +81,7 @@ export class CloudinaryMediaStore implements MediaStore {
   }
   async list(options: MediaListOptions): Promise<MediaList> {
     const query = this.buildQuery(options)
-    const response = await this.fetchFunction('/api/cloudinary/media' + query)
+    const response = await this.fetchFunction(this.baseUrl + query)
 
     if (response.status == 401) {
       throw E_UNAUTHORIZED
@@ -102,17 +101,11 @@ export class CloudinaryMediaStore implements MediaStore {
     }
   }
 
-  // @ts-ignore
-  previewSrc = (publicId: string | Media): string => {
-    if (typeof publicId === 'string') return publicId
-    return publicId.previewSrc
-  }
-
   parse = (img) => {
     return img.src
   }
 
-  private buildQuery(options: MediaListOptions) {
+  buildQuery(options: MediaListOptions) {
     const params = Object.keys(options)
       .filter((key) => options[key] !== '' && options[key] !== undefined)
       .map((key) => `${key}=${options[key]}`)

@@ -1,29 +1,23 @@
 /**
-Copyright 2021 Forestry.io Holdings, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+
 */
 
 import { Client, LocalClient } from '../internalClient'
 import type { TinaIOConfig } from '../internalClient'
 import * as yup from 'yup'
-import { TinaCloudSchema } from '@tinacms/schema-tools'
+import { Schema } from '@tinacms/schema-tools'
 
 export interface CreateClientProps {
   clientId?: string
   isLocalClient?: boolean
+  isSelfHosted?: boolean
   tinaioConfig?: TinaIOConfig
   owner?: string
   repo?: string
   branch?: string
-  schema?: TinaCloudSchema<false>
+  schema?: Schema
+  apiUrl?: string
+  tinaGraphQLVersion: string
 }
 export const createClient = ({
   clientId,
@@ -31,19 +25,22 @@ export const createClient = ({
   branch,
   tinaioConfig,
   schema,
+  apiUrl,
+  tinaGraphQLVersion,
 }: CreateClientProps) => {
   return isLocalClient
-    ? new LocalClient({ schema })
+    ? new LocalClient({ customContentApiUrl: apiUrl, schema })
     : new Client({
         clientId: clientId || '',
         branch: branch || 'main',
         tokenStorage: 'LOCAL_STORAGE',
         tinaioConfig,
         schema,
+        tinaGraphQLVersion,
       })
 }
 
-export function assertShape<T extends unknown>(
+export function assertShape<T>(
   value: unknown,
   yupSchema: (args: typeof yup) => yup.AnySchema,
   errorMessage?: string
@@ -57,7 +54,7 @@ export function assertShape<T extends unknown>(
   }
 }
 
-export function safeAssertShape<T extends unknown>(
+export function safeAssertShape<T>(
   value: unknown,
   yupSchema: (args: typeof yup) => yup.AnySchema
 ): boolean {

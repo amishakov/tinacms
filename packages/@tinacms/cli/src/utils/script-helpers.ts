@@ -1,30 +1,39 @@
 /**
 
-Copyright 2021 Forestry.io Holdings, Inc.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 
 */
 
-export function generateGqlScript(scriptValue) {
-  return `tinacms server:start -c "${scriptValue}"`
+export function generateGqlScript(
+  scriptValue,
+  opts?: { isLocalEnvVarName?: string }
+) {
+  const cmd = `tinacms dev -c "${scriptValue}"`
+  if (opts?.isLocalEnvVarName) {
+    return `${opts.isLocalEnvVarName}=true ${cmd}`
+  }
+  return cmd
 }
 
-export function extendNextScripts(scripts) {
-  return {
+export function extendNextScripts(
+  scripts,
+  opts?: { isLocalEnvVarName?: string; addSetupUsers?: boolean }
+) {
+  const result = {
     ...scripts,
-    dev: generateGqlScript(scripts.dev || 'next dev'),
-    build: generateGqlScript(scripts.build || 'next build'),
-    start: generateGqlScript(scripts.start || 'next start'),
+    dev:
+      !scripts?.dev || scripts?.dev?.indexOf('tinacms dev -c') === -1
+        ? generateGqlScript(scripts?.dev || 'next dev', opts)
+        : scripts?.dev,
+    build:
+      !scripts?.build || !scripts?.build?.startsWith('tinacms build &&')
+        ? `tinacms build && ${scripts?.build || 'next build'}`
+        : scripts?.build,
   }
+
+  if (opts?.addSetupUsers && !scripts['setup:users']) {
+    result['setup:users'] = 'tinacms-next-auth setup'
+  }
+
+  return result
 }

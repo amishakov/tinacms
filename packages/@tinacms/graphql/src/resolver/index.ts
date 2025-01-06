@@ -1,48 +1,314 @@
 /**
-Copyright 2021 Forestry.io Holdings, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+
 */
 
 import path from 'path'
 import { Database } from '../database'
 import { assertShape, lastItem, sequential } from '../util'
 import { NAMER } from '../ast-builder'
-import isValid from 'date-fns/isValid'
+import isValid from 'date-fns/isValid/index.js'
 import { parseMDX, stringifyMDX } from '../mdx'
+import { JSONPath } from 'jsonpath-plus'
 
 import type {
   Collectable,
-  ReferenceTypeWithNamespace,
-  Templateable,
-  TinaCloudCollection,
-  TinaFieldEnriched,
+  ReferenceType,
+  Collection,
+  TinaField,
   Template,
-  TinaFieldInner,
   TinaSchema,
 } from '@tinacms/schema-tools'
 
 import type { GraphQLConfig } from '../types'
 
-import { TinaError } from './error'
-import { FilterCondition, makeFilterChain } from '@tinacms/datalayer'
+import { TinaGraphQLError, TinaParseDocumentError } from './error'
 import { collectConditionsForField, resolveReferences } from './filter-utils'
+import {
+  resolveMediaRelativeToCloud,
+  resolveMediaCloudToRelative,
+} from './media-utils'
+import { GraphQLError } from 'graphql'
+import { FilterCondition, makeFilterChain } from '../database/datalayer'
+import { generatePasswordHash } from '../auth/utils'
 
 interface ResolverConfig {
   config?: GraphQLConfig
   database: Database
   tinaSchema: TinaSchema
+  isAudit: boolean
 }
 
 export const createResolver = (args: ResolverConfig) => {
   return new Resolver(args)
+}
+
+const resolveFieldData = async (
+  { namespace, ...field }: TinaField<true>,
+  rawData: unknown,
+  accumulator: { [key: string]: unknown },
+  tinaSchema: TinaSchema,
+  config?: GraphQLConfig,
+  isAudit?: boolean
+) => {
+  if (!rawData) {
+    return undefined
+  }
+  assertShape<{ [key: string]: unknown }>(rawData, (yup) => yup.object())
+  const value = rawData[field.name]
+  switch (field.type) {
+    case 'datetime':
+      // See you in March ;)
+      if (value instanceof Date) {
+        accumulator[field.name] = value.toISOString()
+      } else {
+        accumulator[field.name] = value
+      }
+      break
+    case 'string':
+    case 'boolean':
+    case 'number':
+      accumulator[field.name] = value
+      break
+    case 'reference':
+      if (value) {
+        accumulator[field.name] = value
+      }
+      break
+    case 'password':
+      accumulator[field.name] = {
+        value: undefined, // never resolve the password hash
+        passwordChangeRequired: value['passwordChangeRequired'] ?? false,
+      }
+      break
+    case 'image':
+      accumulator[field.name] = resolveMediaRelativeToCloud(
+        value as string,
+        config,
+        tinaSchema.schema
+      )
+      break
+    case 'rich-text':
+      // @ts-ignore value is unknown
+      const tree = parseMDX(value, field, (value) =>
+        resolveMediaRelativeToCloud(value, config, tinaSchema.schema)
+      )
+      if (tree?.children[0]?.type === 'invalid_markdown') {
+        if (isAudit) {
+          const invalidNode = tree?.children[0]
+          throw new GraphQLError(
+            `${invalidNode?.message}${
+              invalidNode.position
+                ? ` at line ${invalidNode.position.start.line}, column ${invalidNode.position.start.column}`
+                : ''
+            }`
+          )
+        }
+      }
+      accumulator[field.name] = tree
+      break
+    case 'object':
+      if (field.list) {
+        if (!value) {
+          return
+        }
+
+        assertShape<{ [key: string]: unknown }[]>(value, (yup) =>
+          yup.array().of(yup.object().required())
+        )
+        accumulator[field.name] = await sequential(value, async (item) => {
+          const template = tinaSchema.getTemplateForData({
+            data: item,
+            collection: {
+              namespace,
+              ...field,
+            },
+          })
+          const payload = {}
+          await sequential(template.fields, async (field) => {
+            await resolveFieldData(
+              field,
+              item,
+              payload,
+              tinaSchema,
+              config,
+              isAudit
+            )
+          })
+          const isUnion = !!field.templates
+          return isUnion
+            ? {
+                _template: lastItem(template.namespace),
+                ...payload,
+              }
+            : payload
+        })
+      } else {
+        if (!value) {
+          return
+        }
+
+        const template = tinaSchema.getTemplateForData({
+          data: value,
+          collection: {
+            namespace,
+            ...field,
+          },
+        })
+        const payload = {}
+        await sequential(template.fields, async (field) => {
+          await resolveFieldData(
+            field,
+            value,
+            payload,
+            tinaSchema,
+            config,
+            isAudit
+          )
+        })
+        const isUnion = !!field.templates
+        accumulator[field.name] = isUnion
+          ? {
+              _template: lastItem(template.namespace),
+              ...payload,
+            }
+          : payload
+      }
+
+      break
+    default:
+      return field
+  }
+  return accumulator
+}
+
+export const transformDocumentIntoPayload = async (
+  fullPath: string,
+  rawData: { _collection; _template },
+  tinaSchema: TinaSchema,
+  config?: GraphQLConfig,
+  isAudit?: boolean,
+  hasReferences?: boolean
+) => {
+  const collection = tinaSchema.getCollection(rawData._collection)
+  try {
+    const template = tinaSchema.getTemplateForData({
+      data: rawData,
+      collection,
+    })
+
+    const {
+      base: basename,
+      ext: extension,
+      name: filename,
+    } = path.parse(fullPath)
+
+    const relativePath = fullPath
+      .replace(/\\/g, '/')
+      .replace(collection.path, '')
+      .replace(/^\/|\/$/g, '')
+
+    const breadcrumbs = relativePath.replace(extension, '').split('/')
+
+    const data = {
+      _collection: rawData._collection,
+      _template: rawData._template,
+    }
+    try {
+      await sequential(template.fields, async (field) => {
+        return resolveFieldData(
+          field,
+          rawData,
+          data,
+          tinaSchema,
+          config,
+          isAudit
+        )
+      })
+    } catch (e) {
+      throw new TinaParseDocumentError({
+        originalError: e,
+        collection: collection.name,
+        includeAuditMessage: !isAudit,
+        file: relativePath,
+        stack: e.stack,
+      })
+    }
+
+    const titleField = template.fields.find((x) => {
+      // @ts-ignore
+      if (x.type === 'string' && x?.isTitle) {
+        return true
+      }
+    })
+    const titleFieldName = titleField?.name
+    const title = data[titleFieldName || ' '] || null
+
+    return {
+      __typename: collection.fields
+        ? NAMER.documentTypeName(collection.namespace)
+        : NAMER.documentTypeName(template.namespace),
+      id: fullPath,
+      ...data,
+      _sys: {
+        title: title || '',
+        basename,
+        filename,
+        extension,
+        hasReferences,
+        path: fullPath,
+        relativePath,
+        breadcrumbs,
+        collection,
+        template: lastItem(template.namespace),
+      },
+      _values: data,
+      _rawData: rawData,
+    }
+  } catch (e) {
+    if (e instanceof TinaGraphQLError) {
+      // Attach additional information
+      throw new TinaGraphQLError(e.message, {
+        requestedDocument: fullPath,
+        ...e.extensions,
+      })
+    }
+    throw e
+  }
+}
+
+/**
+ * Updates a property in an object using a JSONPath.
+ * @param {Object} obj - The object to update.
+ * @param {string} path - The JSONPath string.
+ * @param {*} newValue - The new value to set at the specified path.
+ * @returns {Object} - The updated object.
+ */
+const updateObjectWithJsonPath = (obj, path, newValue) => {
+  // Handle the case where path is a simple top-level property
+  if (!path.includes('.') && !path.includes('[')) {
+    if (path in obj) {
+      obj[path] = newValue
+    }
+    return obj
+  }
+
+  // For non-top-level properties, find the parent of the property to update
+  const parentPath = path.replace(/\.[^.]+$/, '')
+  const keyToUpdate = path.match(/[^.]+$/)[0]
+
+  // Retrieve the parent object using the parent path
+  const parents = JSONPath({ path: parentPath, json: obj, resultType: 'value' })
+
+  if (parents.length > 0) {
+    parents.forEach((parent) => {
+      if (parent && typeof parent === 'object' && keyToUpdate in parent) {
+        // Update the property with the new value
+        parent[keyToUpdate] = newValue
+      }
+    })
+  }
+
+  return obj
 }
 
 /**
@@ -53,10 +319,12 @@ export class Resolver {
   public config: GraphQLConfig
   public database: Database
   public tinaSchema: TinaSchema
+  public isAudit: boolean
   constructor(public init: ResolverConfig) {
     this.config = init.config
     this.database = init.database
     this.tinaSchema = init.tinaSchema
+    this.isAudit = init.isAudit
   }
   public resolveCollection = async (
     args,
@@ -80,81 +348,65 @@ export class Resolver {
       ...extraFields,
     }
   }
-  public getDocument = async (fullPath: unknown) => {
+  public getRaw = async (fullPath: unknown) => {
     if (typeof fullPath !== 'string') {
       throw new Error(`fullPath must be of type string for getDocument request`)
     }
 
-    const rawData = await this.database.get<{
+    return this.database.get<{
       _collection: string
       _template: string
     }>(fullPath)
-    const collection = this.tinaSchema.getCollection(rawData._collection)
-    try {
-      const template = await this.tinaSchema.getTemplateForData({
-        data: rawData,
-        collection,
-      })
-
-      const {
-        base: basename,
-        ext: extension,
-        name: filename,
-      } = path.parse(fullPath)
-
-      const relativePath = fullPath
-        .replace('\\', '/')
-        .replace(collection.path, '')
-        .replace(/^\/|\/$/g, '')
-
-      const breadcrumbs = relativePath.replace(extension, '').split('/')
-
-      const data = {
-        _collection: rawData._collection,
-        _template: rawData._template,
-      }
-      await sequential(template.fields, async (field) =>
-        this.resolveFieldData(field, rawData, data)
+  }
+  public getDocumentOrDirectory = async (fullPath: unknown) => {
+    if (typeof fullPath !== 'string') {
+      throw new Error(
+        `fullPath must be of type string for getDocumentOrDirectory request`
       )
-      const titleField = template.fields.find((x) => {
-        // @ts-ignore
-        if (x.type === 'string' && x?.isTitle) {
-          return true
-        }
-      })
-      const titleFieldName = titleField?.name
-      const title = data[titleFieldName || ' '] || null
-
+    }
+    const rawData = await this.getRaw(fullPath)
+    if (rawData['__folderBasename']) {
       return {
-        __typename: collection.fields
-          ? NAMER.documentTypeName(collection.namespace)
-          : NAMER.documentTypeName(template.namespace),
-        id: fullPath,
-        ...data,
-        _sys: {
-          title,
-          basename,
-          filename,
-          extension,
-          path: fullPath,
-          relativePath,
-          breadcrumbs,
-          collection,
-          template: lastItem(template.namespace),
-        },
-        _values: data,
+        __typename: 'Folder',
+        name: rawData['__folderBasename'],
+        path: rawData['__folderPath'],
       }
-    } catch (e) {
-      if (e instanceof TinaError) {
-        // Attach additional information
-        throw new TinaError(e.message, {
-          requestedDocument: fullPath,
-          ...e.extensions,
-        })
-      }
-      throw e
+    } else {
+      return transformDocumentIntoPayload(
+        fullPath,
+        rawData,
+        this.tinaSchema,
+        this.config,
+        this.isAudit
+      )
     }
   }
+
+  public getDocument = async (
+    fullPath: unknown,
+    opts: {
+      collection?: Collection<true>
+      checkReferences?: boolean
+    } = {}
+  ) => {
+    if (typeof fullPath !== 'string') {
+      throw new Error(`fullPath must be of type string for getDocument request`)
+    }
+
+    const rawData = await this.getRaw(fullPath)
+    const hasReferences = opts?.checkReferences
+      ? await this.hasReferences(fullPath, opts.collection)
+      : undefined
+    return transformDocumentIntoPayload(
+      fullPath,
+      rawData,
+      this.tinaSchema,
+      this.config,
+      this.isAudit,
+      hasReferences
+    )
+  }
+
   public deleteDocument = async (fullPath: unknown) => {
     if (typeof fullPath !== 'string') {
       throw new Error(`fullPath must be of type string for getDocument request`)
@@ -163,56 +415,85 @@ export class Resolver {
     await this.database.delete(fullPath)
   }
 
-  public buildObjectMutations = (fieldValue: any, field: Collectable) => {
+  public buildObjectMutations = async (
+    fieldValue: any,
+    field: Collectable,
+    existingData?: Record<string, any> | Record<string, any>[]
+  ) => {
     if (field.fields) {
-      const objectTemplate =
-        typeof field.fields === 'string'
-          ? this.tinaSchema.getGlobalTemplate(field.fields)
-          : field
+      const objectTemplate = field
       if (Array.isArray(fieldValue)) {
-        return fieldValue.map((item) =>
-          // @ts-ignore FIXME Argument of type 'string | object' is not assignable to parameter of type '{ [fieldName: string]: string | object | (string | object)[]; }'
-          this.buildFieldMutations(item, objectTemplate)
+        const idField = objectTemplate.fields.find((field) => field.uid)
+        if (idField) {
+          // check for duplicate ids in the data array
+          const ids = fieldValue.map((d) => d[idField.name])
+          const duplicateIds = ids.filter(
+            (id, index) => ids.indexOf(id) !== index
+          )
+          if (duplicateIds.length > 0) {
+            throw new Error(
+              `Duplicate ids found in array for field marked as identifier: ${idField.name}`
+            )
+          }
+        }
+        return Promise.all(
+          fieldValue.map(async (item) =>
+            // @ts-ignore FIXME Argument of type 'string | object' is not assignable to parameter of type '{ [fieldName: string]: string | object | (string | object)[]; }'
+            {
+              return this.buildFieldMutations(
+                item,
+                objectTemplate as any,
+                idField &&
+                  existingData &&
+                  existingData?.find(
+                    (d) => d[idField.name] === item[idField.name]
+                  )
+              )
+            }
+          )
         )
       } else {
         return this.buildFieldMutations(
           // @ts-ignore FIXME Argument of type 'string | object' is not assignable to parameter of type '{ [fieldName: string]: string | object | (string | object)[]; }'
           fieldValue,
           //@ts-ignore
-          objectTemplate
+          objectTemplate,
+          existingData
         )
       }
     }
     if (field.templates) {
       if (Array.isArray(fieldValue)) {
-        return fieldValue.map((item) => {
-          if (typeof item === 'string') {
-            throw new Error(
-              //@ts-ignore
-              `Expected object for template value for field ${field.name}`
-            )
-          }
-          const templates = field.templates.map((templateOrTemplateName) => {
-            if (typeof templateOrTemplateName === 'string') {
-              return this.tinaSchema.getGlobalTemplate(templateOrTemplateName)
+        return Promise.all(
+          fieldValue.map(async (item) => {
+            if (typeof item === 'string') {
+              throw new Error(
+                //@ts-ignore
+                `Expected object for template value for field ${field.name}`
+              )
             }
-            return templateOrTemplateName
+            const templates = field.templates.map((templateOrTemplateName) => {
+              return templateOrTemplateName
+            })
+            const [templateName] = Object.entries(item)[0]
+            const template = templates.find(
+              //@ts-ignore
+              (template) => template.name === templateName
+            )
+            if (!template) {
+              throw new Error(`Expected to find template ${templateName}`)
+            }
+            return {
+              // @ts-ignore FIXME Argument of type 'unknown' is not assignable to parameter of type '{ [fieldName: string]: string | { [key: string]: unknown; } | (string | { [key: string]: unknown; })[]; }'
+              ...(await this.buildFieldMutations(
+                item[template.name],
+                template
+              )),
+              //@ts-ignore
+              _template: template.name,
+            }
           })
-          const [templateName] = Object.entries(item)[0]
-          const template = templates.find(
-            //@ts-ignore
-            (template) => template.name === templateName
-          )
-          if (!template) {
-            throw new Error(`Expected to find template ${templateName}`)
-          }
-          return {
-            // @ts-ignore FIXME Argument of type 'unknown' is not assignable to parameter of type '{ [fieldName: string]: string | { [key: string]: unknown; } | (string | { [key: string]: unknown; })[]; }'
-            ...this.buildFieldMutations(item[template.name], template),
-            //@ts-ignore
-            _template: template.name,
-          }
-        })
+        )
       } else {
         if (typeof fieldValue === 'string') {
           throw new Error(
@@ -221,9 +502,6 @@ export class Resolver {
           )
         }
         const templates = field.templates.map((templateOrTemplateName) => {
-          if (typeof templateOrTemplateName === 'string') {
-            return this.tinaSchema.getGlobalTemplate(templateOrTemplateName)
-          }
           return templateOrTemplateName
         })
         const [templateName] = Object.entries(fieldValue)[0]
@@ -236,7 +514,10 @@ export class Resolver {
         }
         return {
           // @ts-ignore FIXME Argument of type 'unknown' is not assignable to parameter of type '{ [fieldName: string]: string | { [key: string]: unknown; } | (string | { [key: string]: unknown; })[]; }'
-          ...this.buildFieldMutations(fieldValue[template.name], template),
+          ...(await this.buildFieldMutations(
+            fieldValue[template.name],
+            template
+          )),
           //@ts-ignore
           _template: template.name,
         }
@@ -250,7 +531,7 @@ export class Resolver {
     args,
     isAddPendingDocument,
   }: {
-    collection: TinaCloudCollection<true>
+    collection: Collection<true>
     realPath: string
     args: unknown
     isAddPendingDocument: boolean
@@ -297,7 +578,7 @@ export class Resolver {
       return this.getDocument(realPath)
     }
 
-    const params = this.buildObjectMutations(
+    const params = await this.buildObjectMutations(
       // @ts-ignore
       args.params[collection.name],
       collection
@@ -315,12 +596,15 @@ export class Resolver {
     isAddPendingDocument,
     isCollectionSpecific,
   }: {
-    collection: TinaCloudCollection<true>
+    collection: Collection<true>
     realPath: string
     args: unknown
     isAddPendingDocument: boolean
     isCollectionSpecific: boolean
   }) => {
+    const doc = await this.getDocument(realPath)
+
+    const oldDoc = this.resolveLegacyValues(doc?._rawData || {}, collection)
     /**
      * TODO: Remove when `addPendingDocument` is no longer needed.
      */
@@ -332,11 +616,16 @@ export class Resolver {
       switch (templateInfo.type) {
         case 'object':
           if (params) {
-            const values = this.buildFieldMutations(
+            const values = await this.buildFieldMutations(
               params,
-              templateInfo.template
+              templateInfo.template,
+              doc?._rawData
             )
-            await this.database.put(realPath, values, collection.name)
+            await this.database.put(
+              realPath,
+              { ...oldDoc, ...values },
+              collection.name
+            )
           }
           break
         case 'union':
@@ -350,8 +639,13 @@ export class Resolver {
                 )
               }
               const values = {
-                // @ts-ignore FIXME: failing on unknown, which we don't need to know because it's recursive
-                ...this.buildFieldMutations(templateParams, template),
+                ...oldDoc,
+                ...(await this.buildFieldMutations(
+                  // @ts-ignore FIXME: failing on unknown, which we don't need to know because it's recursive
+                  templateParams,
+                  template,
+                  doc?._rawData
+                )),
                 _template: lastItem(template.namespace),
               }
               await this.database.put(realPath, values, collection.name)
@@ -361,14 +655,55 @@ export class Resolver {
       return this.getDocument(realPath)
     }
 
-    const params = this.buildObjectMutations(
+    const params = await this.buildObjectMutations(
       //@ts-ignore
       isCollectionSpecific ? args.params : args.params[collection.name],
-      collection
+      collection,
+      doc?._rawData
     )
     //@ts-ignore
-    await this.database.put(realPath, params, collection.name)
+    await this.database.put(realPath, { ...oldDoc, ...params }, collection.name)
     return this.getDocument(realPath)
+  }
+
+  /**
+   * Returns top-level fields which are not defined in the collection, so their
+   * values are not eliminated from Tina when new values are saved
+   */
+  public resolveLegacyValues = (oldDoc, collection: Collection<true>) => {
+    const legacyValues = {}
+    Object.entries(oldDoc).forEach(([key, value]) => {
+      const reservedKeys = [
+        '$_body',
+        '_collection',
+        '_keepTemplateKey',
+        '_template',
+        '_relativePath',
+        '_id',
+      ]
+      // ignore reserved keys
+      if (reservedKeys.includes(key)) {
+        return
+      }
+      // if we have a template key and templates in the collection
+      if (oldDoc._template && collection.templates) {
+        const template = collection.templates?.find(
+          ({ name }) => name === oldDoc._template
+        )
+        if (template) {
+          if (!template.fields.find(({ name }) => name === key)) {
+            legacyValues[key] = value
+          }
+        }
+      }
+      // if we have a collection key and fields in the collection
+      if (oldDoc._collection && collection.fields) {
+        if (!collection.fields.find(({ name }) => name === key)) {
+          legacyValues[key] = value
+        }
+      }
+    })
+    return legacyValues
   }
 
   public resolveDocument = async ({
@@ -377,16 +712,20 @@ export class Resolver {
     isMutation,
     isCreation,
     isDeletion,
+    isFolderCreation,
     isAddPendingDocument,
     isCollectionSpecific,
+    isUpdateName,
   }: {
     args: unknown
     collection?: string
     isMutation: boolean
     isCreation?: boolean
     isDeletion?: boolean
+    isFolderCreation?: boolean
     isAddPendingDocument?: boolean
     isCollectionSpecific?: boolean
+    isUpdateName?: boolean
   }) => {
     /**
      * `collectionName` is passed in:
@@ -423,7 +762,10 @@ export class Resolver {
     )
 
     const collection = await this.tinaSchema.getCollection(collectionLookup)
-    const realPath = path.join(collection?.path, args.relativePath)
+    let realPath = path.join(collection?.path, args.relativePath)
+    if (isFolderCreation) {
+      realPath = `${realPath}/.gitkeep.${collection.format || 'md'}`
+    }
     const alreadyExists = await this.database.documentExists(realPath)
 
     if (isMutation) {
@@ -440,16 +782,89 @@ export class Resolver {
           args,
           isAddPendingDocument,
         })
+      } else if (isFolderCreation) {
+        /**
+         * createFolder, create<Collection>Folder
+         */
+        if (alreadyExists === true) {
+          throw new Error(`Unable to add folder, ${realPath} already exists`)
+        }
+        await this.database.put(
+          realPath,
+          { _is_tina_folder_placeholder: true },
+          collection.name
+        )
+        return this.getDocument(realPath)
       }
-      if (isDeletion) {
-        if (!alreadyExists) {
+      // if we are deleting a document or updating its name we should check if it exists
+      if (!alreadyExists) {
+        if (isDeletion) {
           throw new Error(
             `Unable to delete document, ${realPath} does not exist`
           )
         }
+        if (isUpdateName) {
+          throw new Error(
+            `Unable to update document, ${realPath} does not exist`
+          )
+        }
+      }
+      if (isDeletion) {
         const doc = await this.getDocument(realPath)
         await this.deleteDocument(realPath)
+        if (await this.hasReferences(realPath, collection)) {
+          const collRefs = await this.findReferences(realPath, collection)
+          for (const [collection, refFields] of Object.entries(collRefs)) {
+            for (const [refPath, refs] of Object.entries(refFields)) {
+              let refDoc = await this.getRaw(refPath)
+              for (const ref of refs) {
+                refDoc = updateObjectWithJsonPath(
+                  refDoc,
+                  ref.path.join('.'),
+                  null
+                )
+              }
+              await this.database.put(refPath, refDoc, collection)
+            }
+          }
+        }
         return doc
+      }
+      if (isUpdateName) {
+        // Must provide a new relative path in the params
+        assertShape<{ params: string }>(args, (yup) =>
+          yup.object({ params: yup.object().required() })
+        )
+        assertShape<{ relativePath: string }>(args?.params, (yup) =>
+          yup.object({ relativePath: yup.string().required() })
+        )
+
+        // Get the real document
+        const doc = await this.getDocument(realPath)
+        const newRealPath = path.join(
+          collection?.path,
+          args.params.relativePath
+        )
+        // Update the document
+        await this.database.put(newRealPath, doc._rawData, collection.name)
+        // Delete the old document
+        await this.deleteDocument(realPath)
+        // Update references to the document
+        const collRefs = await this.findReferences(realPath, collection)
+        for (const [collection, refFields] of Object.entries(collRefs)) {
+          for (const [refPath, refs] of Object.entries(refFields)) {
+            let refDoc = await this.getRaw(refPath)
+            for (const ref of refs) {
+              refDoc = updateObjectWithJsonPath(
+                refDoc,
+                ref.path.join('.'),
+                newRealPath
+              )
+            }
+            await this.database.put(refPath, refDoc, collection)
+          }
+        }
+        return this.getDocument(newRealPath)
       }
       /**
        * updateDocument, update<Collection>Document
@@ -468,7 +883,10 @@ export class Resolver {
       /**
        * getDocument, get<Collection>Document
        */
-      return this.getDocument(realPath)
+      return this.getDocument(realPath, {
+        collection,
+        checkReferences: true,
+      })
     }
   }
 
@@ -486,7 +904,7 @@ export class Resolver {
 
   private referenceResolver = async (
     filter: Record<string, object>,
-    fieldDefinition: ReferenceTypeWithNamespace
+    fieldDefinition: ReferenceType<true>
   ) => {
     const referencedCollection = this.tinaSchema.getCollection(
       fieldDefinition.collections[0]
@@ -521,7 +939,7 @@ export class Resolver {
 
   private async resolveFilterConditions(
     filter: Record<string, Record<string, object>>,
-    fields: TinaFieldInner<false>[],
+    fields: TinaField[],
     collectionName
   ) {
     const conditions: FilterCondition[] = []
@@ -566,74 +984,57 @@ export class Resolver {
     hydrator,
   }: {
     args: Record<string, Record<string, object> | string | number>
-    collection: TinaCloudCollection<true>
+    collection: Collection<true>
     hydrator?: (string) => any
   }) => {
-    let edges
-    let pageInfo
-
-    // See if we are using the data layer
-    const useDataLayer = Boolean(
-      this.tinaSchema?.config?.meta?.flags?.find(
-        (x) => x === 'experimentalData'
-      )
-    )
-
-    if (useDataLayer) {
-      let conditions: FilterCondition[]
-      if (args.filter) {
-        if (collection.fields) {
-          conditions = await this.resolveFilterConditions(
-            args.filter as Record<string, Record<string, object>>,
-            collection.fields as TinaFieldInner<false>[],
-            collection.name
+    let conditions: FilterCondition[]
+    if (args.filter) {
+      if (collection.fields) {
+        conditions = await this.resolveFilterConditions(
+          args.filter as Record<string, Record<string, object>>,
+          collection.fields as TinaField[],
+          collection.name
+        )
+      } else if (collection.templates) {
+        for (const templateName of Object.keys(args.filter)) {
+          const template = (collection.templates as Template[]).find(
+            (template) => template.name === templateName
           )
-        } else if (collection.templates) {
-          for (const templateName of Object.keys(args.filter)) {
-            const template = (collection.templates as Template<false>[]).find(
-              (template) => template.name === templateName
-            )
 
-            if (template) {
-              conditions = await this.resolveFilterConditions(
-                args.filter[templateName],
-                template.fields as TinaFieldInner<false>[],
-                `${collection.name}.${templateName}`
-              )
-            } else {
-              throw new Error(
-                `Error template not found: ${templateName} in collection ${collection.name}`
-              )
-            }
+          if (template) {
+            conditions = await this.resolveFilterConditions(
+              args.filter[templateName],
+              template.fields as TinaField[],
+              `${collection.name}.${templateName}`
+            )
+          } else {
+            throw new Error(
+              `Error template not found: ${templateName} in collection ${collection.name}`
+            )
           }
         }
       }
-
-      const queryOptions = {
-        filterChain: makeFilterChain({
-          conditions: conditions || [],
-        }),
-        collection: collection.name,
-        sort: args.sort as string,
-        first: args.first as number,
-        last: args.last as number,
-        before: args.before as string,
-        after: args.after as string,
-      }
-
-      const result = await this.database.query(
-        queryOptions,
-        hydrator ? hydrator : this.getDocument
-      )
-      edges = result.edges
-      pageInfo = result.pageInfo
-    } else {
-      edges = (
-        await this.database.store.glob(collection.path, this.getDocument)
-      ).map((document) => ({
-        node: document,
-      }))
     }
+
+    const queryOptions = {
+      filterChain: makeFilterChain({
+        conditions: conditions || [],
+      }),
+      collection: collection.name,
+      sort: args.sort as string,
+      first: args.first as number,
+      last: args.last as number,
+      before: args.before as string,
+      after: args.after as string,
+      folder: args.folder as string,
+    }
+
+    const result = await this.database.query(
+      queryOptions,
+      hydrator ? hydrator : this.getDocumentOrDirectory
+    )
+    const edges = result.edges
+    const pageInfo = result.pageInfo
 
     return {
       totalCount: edges.length,
@@ -647,15 +1048,122 @@ export class Resolver {
     }
   }
 
-  private buildFieldMutations = (
+  /**
+   * Checks if a document has references to it
+   * @param id  The id of the document to check for references
+   * @param c The collection to check for references
+   * @returns true if the document has references, false otherwise
+   */
+  private hasReferences = async (id: string, c: Collection) => {
+    let count = 0
+    const deepRefs = this.tinaSchema.findReferences(c.name)
+    for (const [collection, refs] of Object.entries(deepRefs)) {
+      for (const ref of refs) {
+        await this.database.query(
+          {
+            collection: collection,
+            filterChain: makeFilterChain({
+              conditions: [
+                {
+                  filterPath: ref.path.join('.'),
+                  filterExpression: {
+                    _type: 'reference',
+                    _list: false,
+                    eq: id,
+                  },
+                },
+              ],
+            }),
+            sort: ref.field.name,
+          },
+          (refId: string) => {
+            count++
+            return refId
+          }
+        )
+        if (count) {
+          return true
+        }
+      }
+    }
+
+    return false
+  }
+
+  /**
+   * Finds references to a document
+   * @param id the id of the document to find references to
+   * @param c the collection to find references in
+   * @returns references to the document in the form of a map of collection names to a list of fields that reference the document
+   */
+  private findReferences = async (id: string, c: Collection) => {
+    const references: Record<
+      string,
+      Record<string, { path: string[]; field: TinaField }[]>
+    > = {}
+    const deepRefs = this.tinaSchema.findReferences(c.name)
+
+    for (const [collection, refs] of Object.entries(deepRefs)) {
+      for (const ref of refs) {
+        await this.database.query(
+          {
+            collection: collection,
+            filterChain: makeFilterChain({
+              conditions: [
+                {
+                  filterPath: ref.path.join('.'),
+                  filterExpression: {
+                    _type: 'reference',
+                    _list: false,
+                    eq: id,
+                  },
+                },
+              ],
+            }),
+            sort: ref.field.name,
+          },
+          (refId: string) => {
+            if (!references[collection]) {
+              references[collection] = {}
+            }
+            if (!references[collection][refId]) {
+              references[collection][refId] = []
+            }
+            references[collection][refId].push({
+              path: ref.path,
+              field: ref.field,
+            })
+            return refId
+          }
+        )
+      }
+    }
+
+    return references
+  }
+
+  private buildFieldMutations = async (
     fieldParams: FieldParams,
-    template: Templateable
+    template: Template<true>,
+    existingData?: Record<string, any>
   ) => {
     const accum: { [key: string]: unknown } = {}
-    Object.entries(fieldParams).forEach(([fieldName, fieldValue]) => {
+    // since password fields may not always be set, we use the template fields to populate an empty string
+    for (const passwordField of template.fields.filter(
+      (f) => f.type === 'password'
+    )) {
+      if (!fieldParams[passwordField.name]['value']) {
+        fieldParams[passwordField.name] = {
+          ...(<object>fieldParams[passwordField.name]),
+          value: '',
+        }
+      }
+    }
+    for (const [fieldName, fieldValue] of Object.entries(fieldParams)) {
       if (Array.isArray(fieldValue)) {
         if (fieldValue.length === 0) {
-          return
+          accum[fieldName] = []
+          continue
         }
       }
       const field = template.fields.find((field) => field.name === fieldName)
@@ -670,15 +1178,53 @@ export class Resolver {
         case 'string':
         case 'boolean':
         case 'number':
-        case 'image':
           accum[fieldName] = fieldValue
           break
+        case 'image':
+          accum[fieldName] = resolveMediaCloudToRelative(
+            fieldValue as string,
+            this.config,
+            this.tinaSchema.schema
+          )
+          break
         case 'object':
-          accum[fieldName] = this.buildObjectMutations(fieldValue, field)
+          accum[fieldName] = await this.buildObjectMutations(
+            fieldValue,
+            field,
+            existingData?.[fieldName]
+          )
+          break
+        case 'password':
+          if (typeof fieldValue !== 'object') {
+            throw new Error(
+              `Expected to find object for password field ${fieldName}. Found ${typeof accum[
+                fieldName
+              ]}`
+            )
+          }
+          if (fieldValue['value']) {
+            accum[fieldName] = {
+              ...fieldValue,
+              value: await generatePasswordHash({
+                password: fieldValue['value'],
+              }),
+            }
+          } else {
+            accum[fieldName] = {
+              ...fieldValue,
+              value: existingData?.[fieldName]?.['value'],
+            }
+          }
           break
         case 'rich-text':
-          field
-          accum[fieldName] = stringifyMDX(fieldValue, field)
+          // @ts-ignore
+          accum[fieldName] = stringifyMDX(fieldValue, field, (fieldValue) =>
+            resolveMediaCloudToRelative(
+              fieldValue as string,
+              this.config,
+              this.tinaSchema.schema
+            )
+          )
           break
         case 'reference':
           accum[fieldName] = fieldValue
@@ -687,112 +1233,8 @@ export class Resolver {
           // @ts-ignore
           throw new Error(`No mutation builder for field type ${field.type}`)
       }
-    })
+    }
     return accum
-  }
-
-  private resolveFieldData = async (
-    { namespace, ...field }: TinaFieldEnriched,
-    rawData: unknown,
-    accumulator: { [key: string]: unknown }
-  ) => {
-    if (!rawData) {
-      return undefined
-    }
-    assertShape<{ [key: string]: unknown }>(rawData, (yup) => yup.object())
-    const value = rawData[field.name]
-    switch (field.type) {
-      case 'datetime':
-        // See you in March ;)
-        if (value instanceof Date) {
-          accumulator[field.name] = value.toISOString()
-        } else {
-          accumulator[field.name] = value
-        }
-        break
-      case 'string':
-      case 'boolean':
-      case 'number':
-      case 'reference':
-        accumulator[field.name] = value
-        break
-      case 'image':
-        if (this.config) {
-          if (this.config.useRelativeMedia === true) {
-            accumulator[field.name] = value
-          } else {
-            accumulator[
-              field.name
-            ] = `https://${this.config.assetsHost}/${this.config.clientId}/${value}`
-          }
-        } else {
-          accumulator[field.name] = value
-        }
-        break
-      case 'rich-text':
-        // @ts-ignore value is unknown
-        const tree = parseMDX(value, field)
-        accumulator[field.name] = tree
-        break
-      case 'object':
-        if (field.list) {
-          if (!value) {
-            return
-          }
-
-          assertShape<{ [key: string]: unknown }[]>(value, (yup) =>
-            yup.array().of(yup.object().required())
-          )
-          accumulator[field.name] = await sequential(value, async (item) => {
-            const template = await this.tinaSchema.getTemplateForData({
-              data: item,
-              collection: {
-                namespace,
-                ...field,
-              },
-            })
-            const payload = {}
-            await sequential(template.fields, async (field) => {
-              await this.resolveFieldData(field, item, payload)
-            })
-            const isUnion = !!field.templates
-            return isUnion
-              ? {
-                  _template: lastItem(template.namespace),
-                  ...payload,
-                }
-              : payload
-          })
-        } else {
-          if (!value) {
-            return
-          }
-
-          const template = await this.tinaSchema.getTemplateForData({
-            data: value,
-            collection: {
-              namespace,
-              ...field,
-            },
-          })
-          const payload = {}
-          await sequential(template.fields, async (field) => {
-            await this.resolveFieldData(field, value, payload)
-          })
-          const isUnion = !!field.templates
-          accumulator[field.name] = isUnion
-            ? {
-                _template: lastItem(template.namespace),
-                ...payload,
-              }
-            : payload
-        }
-
-        break
-      default:
-        return field
-    }
-    return accumulator
   }
 
   /**
@@ -853,10 +1295,7 @@ const resolveDateInput = (value: string) => {
     throw 'Invalid Date'
   }
 
-  /**
-   * toISOString() converts to UTC
-   */
-  return date.toISOString()
+  return date
 }
 
 type FieldParams = {

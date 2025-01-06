@@ -1,195 +1,198 @@
-/**
-Copyright 2021 Forestry.io Holdings, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 import { Telemetry } from '@tinacms/metrics'
 import { Command } from 'commander'
 import prompts from 'prompts'
-// TODO: add and implement async-retry
-// import retry from 'async-retry'
-import path from 'path'
-//@ts-ignore
+import path from 'node:path'
 import { version, name } from '../package.json'
-import { isWriteable, makeDir, isFolderEmpty } from './util/fileUtil'
+import {
+  isWriteable,
+  setupProjectDirectory,
+  updateProjectPackageName,
+  updateProjectPackageVersion,
+} from './util/fileUtil'
 import { install } from './util/install'
-import chalk from 'chalk'
-import { tryGitInit } from './util/git'
-import { exit } from 'process'
-import { EXAMPLES, downloadExample } from './examples'
+import { initializeGit, makeFirstCommit } from './util/git'
+import { TEMPLATES, downloadTemplate } from './templates'
 import { preRunChecks } from './util/preRunChecks'
+import { checkPackageExists } from './util/checkPkgManagers'
+import { log, TextStyles } from './util/logger'
+import { exit } from 'node:process'
+import validate from 'validate-npm-package-name'
 
-const program = new Command(name)
-let projectName = ''
-program
-  .version(version)
-  .option('-e, --example <example>', 'Choose which example to start from')
-  .option('-d, --dir <dir>', 'Choose which directory to run this script from')
-  .option('--noTelemetry', 'Disable anonymous telemetry that is collected')
-  .arguments('[project-directory]')
-  .usage(`${chalk.green('<project-directory>')} [options]`)
-  .action((name) => {
-    projectName = name
-  })
+export const PKG_MANAGERS = ['npm', 'yarn', 'pnpm']
 
-export const run = async () => {
+export async function run() {
   preRunChecks()
+
+  let projectName = ''
+
+  const program = new Command(name)
+  program
+    .version(version)
+    .option(
+      '-t, --template <template>',
+      `Choose which template to start from. Valid templates are: ${TEMPLATES.map(
+        (x) => x.value
+      )}`
+    )
+    .option(
+      '-p, --pkg-manager <pkg-manager>',
+      `Choose which package manager to use. Valid package managers are: ${PKG_MANAGERS}`
+    )
+    .option(
+      '-d, --dir <dir>',
+      'Choose which directory to run this script from.'
+    )
+    .option('--noTelemetry', 'Disable anonymous telemetry that is collected.')
+    .arguments('[project-directory]')
+    .usage(`${TextStyles.success('<project-directory>')} [options]`)
+    .action((name) => {
+      projectName = name
+    })
+
   program.parse(process.argv)
   const opts = program.opts()
   if (opts.dir) {
     process.chdir(opts.dir)
   }
+
   const telemetry = new Telemetry({ disabled: opts?.noTelemetry })
 
-  let example = opts.example
+  let template = opts.template
+  if (template) {
+    template = TEMPLATES.find((_template) => _template.value === template)
+    if (!template) {
+      log.err(
+        `The provided template '${
+          opts.template
+        }' is invalid. Please provide one of the following: ${TEMPLATES.map(
+          (x) => x.value
+        )}`
+      )
+      exit(1)
+    }
+  }
 
-  const res = await prompts({
-    message: 'Which package manager would you like to use?',
-    name: 'useYarn',
-    type: 'select',
-    choices: [
-      { title: 'Yarn', value: 'yarn' },
-      { title: 'NPM', value: 'npm' },
-    ],
-  })
+  let pkgManager = opts.pkgManager
+  if (pkgManager) {
+    if (!PKG_MANAGERS.find((_pkgManager) => _pkgManager === pkgManager)) {
+      log.err(
+        `The provided package manager '${opts.pkgManager}' is not supported. Please provide one of the following: ${PKG_MANAGERS}`
+      )
+      exit(1)
+    }
+  }
 
-  const useYarn = res.useYarn === 'yarn'
-  const displayedCommand = useYarn ? 'yarn' : 'npm'
+  if (!pkgManager) {
+    const installedPkgManagers = []
+    for (const pkg_manager of PKG_MANAGERS) {
+      if (await checkPackageExists(pkg_manager)) {
+        installedPkgManagers.push(pkg_manager)
+      }
+    }
 
-  // If there is no project name passed in the CLI ask for one
+    if (installedPkgManagers.length === 0) {
+      log.err(
+        `You have no supported package managers installed. Please install one of the following: ${PKG_MANAGERS}`
+      )
+      exit(1)
+    }
+
+    const res = await prompts({
+      message: 'Which package manager would you like to use?',
+      name: 'packageManager',
+      type: 'select',
+      choices: installedPkgManagers.map((manager) => {
+        return { title: manager, value: manager }
+      }),
+    })
+    if (!Object.hasOwn(res, 'packageManager')) exit(1) // User most likely sent SIGINT.
+    pkgManager = res.packageManager
+  }
+
   if (!projectName) {
     const res = await prompts({
       name: 'name',
       type: 'text',
       message: 'What is your project named?',
       initial: 'my-tina-app',
-      // TODO: impalement validation logic
-      // validate: (name) => {
-      //   const validation = validateNpmName(path.basename(path.resolve(name)))
-      //   if (validation.valid) {
-      //     return true
-      //   }
-      //   return 'Invalid project name: ' + validation.problems![0]
-      // },
+      validate: (name) => {
+        const { validForNewPackages, errors } = validate(
+          path.basename(path.resolve(name))
+        )
+        if (validForNewPackages) return true
+        return 'Invalid project name: ' + errors[0]
+      },
     })
+    if (!Object.hasOwn(res, 'name')) exit(1) // User most likely sent SIGINT.
     projectName = res.name
   }
-  const dirName = projectName
 
-  // If there is no --example passed thought the CLI
-  if (!example) {
+  if (!template) {
     const res = await prompts({
-      name: 'example',
+      name: 'template',
       type: 'select',
       message: 'What starter code would you like to use?',
-      choices: EXAMPLES,
+      choices: TEMPLATES,
     })
-
-    if (typeof res.example !== 'string') {
-      console.error(chalk.red('Input must be a string'))
-      exit(1)
-    }
-    example = res.example
+    if (!Object.hasOwn(res, 'template')) exit(1) // User most likely sent SIGINT.
+    template = TEMPLATES.find((_template) => _template.value === res.template)
   }
-  const chosenExample = EXAMPLES.find((x) => x.value === example)
 
-  if (!chosenExample) {
-    console.error(
-      `The example provided is not a valid example. Please provide one of the following; ${EXAMPLES.map(
-        (x) => x.value
-      )}`
-    )
-  }
   await telemetry.submitRecord({
     event: {
       name: 'create-tina-app:invoke',
-      example,
-      useYarn: Boolean(useYarn),
+      template: template,
+      pkgManager: pkgManager,
     },
   })
 
-  // Setup directory
-  const root = path.join(process.cwd(), dirName)
-
-  if (!(await isWriteable(path.dirname(root)))) {
-    console.error(
-      'The application path is not writable, please check folder permissions and try again.'
-    )
-    console.error(
-      'It is likely you do not have write permissions for this folder.'
+  const rootDir = path.join(process.cwd(), projectName)
+  if (!(await isWriteable(path.dirname(rootDir)))) {
+    log.err(
+      'The application path is not writable, please check folder permissions and try again. It is likely you do not have write permissions for this folder.'
     )
     process.exit(1)
   }
+  const appName = await setupProjectDirectory(rootDir)
 
-  const appName = path.basename(root)
-
-  await makeDir(root)
-  process.chdir(root)
-
-  if (!isFolderEmpty(root, appName)) {
-    process.exit(1)
+  try {
+    await downloadTemplate(template, rootDir)
+    updateProjectPackageName(rootDir, projectName)
+    updateProjectPackageVersion(rootDir, '0.0.1')
+  } catch (err) {
+    log.err(`Failed to download template: ${(err as Error).message}`)
+    exit(1)
   }
 
-  await downloadExample(chosenExample, root)
+  log.info('Installing packages.')
+  await install(rootDir, null, { packageManager: pkgManager, isOnline: true })
 
-  console.log('Installing packages. This might take a couple of minutes.')
-  console.log()
-
-  // Run install command
-  await install(root, null, { useYarn, isOnline: true })
-  console.log(chalk.green('Finished installing all packages'))
-  console.log()
-
-  if (tryGitInit(root)) {
-    console.log('Initialized a git repository.')
-    console.log()
+  log.info('Initializing git repository.')
+  try {
+    if (initializeGit()) {
+      makeFirstCommit(rootDir)
+      log.info('Initialized git repository.')
+    }
+  } catch (err) {
+    log.err('Failed to initialize Git repository, skipping.')
   }
 
-  console.log(`${chalk.green('Success!')} Created ${appName} at ${root}`)
+  log.success('Starter successfully created!')
 
-  // We can add this back in if we want
-  // console.log('Inside that directory, you can run several commands:')
-  // console.log()
-  // console.log(chalk.cyan(`  ${displayedCommand} ${useYarn ? '' : 'run '}dev`))
-  // console.log('    Starts the development server.')
-  // console.log()
-  // console.log(chalk.cyan(`  ${displayedCommand} ${useYarn ? '' : 'run '}build`))
-  // console.log('    Builds the app for production.')
-  // console.log()
-  // console.log(chalk.cyan(`  ${displayedCommand} start`))
-  // console.log('    Runs the built app in production mode.')
-  // console.log()
-  // console.log('We suggest that you begin by typing:')
-  console.log(chalk.bold('\tTo launch your app, run:'))
-  console.log()
-  console.log(chalk.cyan('  cd'), appName)
-  console.log(
-    `  ${chalk.cyan(`${displayedCommand} ${useYarn ? '' : 'run '}dev`)}`
-  )
-  console.log()
-  console.log(chalk.bold('  Next steps:'))
-  console.log()
-  console.log('- Go to http://localhost:3000/admin to enter edit-mode')
-  console.log(
-    '- Edit some content on http://localhost:3000 (See https://tina.io/docs/using-tina-editor )'
-  )
-  console.log(
-    '- Check out our concept docs, to learn how Tina powers the starters under the hood. (See https://tina.io/docs/schema/)'
-  )
-  console.log(
-    '- Learn how Tina can be extended to create new field components. (See https://tina.io/docs/advanced/extending-tina/) '
-  )
-  console.log(
-    '- Make your site editable with Tina on production. (See https://tina.io/docs/tina-cloud/)'
-  )
+  log.log(TextStyles.bold('\nTo launch your app, run:\n'))
+  log.cmd(`cd ${appName}\n${pkgManager} run dev`)
+  log.log(`\nNext steps:
+    • 📝 Edit some content on ${TextStyles.link(
+      'http://localhost:3000'
+    )} (See ${TextStyles.link('https://tina.io/docs/using-tina-editor')})
+    • 📖 Learn the basics: ${TextStyles.link('https://tina.io/docs/schema/')}
+    • 🖌️ Extend Tina with custom field components: ${TextStyles.link(
+      'https://tina.io/docs/advanced/extending-tina/'
+    )}
+    • 🚀 Deploy to Production: ${TextStyles.link(
+      'https://tina.io/docs/tina-cloud/'
+    )}
+  `)
 }
 
 run()

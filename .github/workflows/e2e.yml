@@ -1,37 +1,43 @@
 name: e2e Tests
-on: [push]
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
 jobs:
-  cypress-run:
-    runs-on: ubuntu-20.04
-    # There is currently a bug on chrome 100 that adds an extra space in the editor.=
-    # container: cypress/browsers:node14.17.6-chrome100-ff98
-    container: cypress/browsers:node14.17.0-chrome88-ff89
-    name: E2E on Tests
-    strategy:
-      matrix:
-        browser: ['chrome', 'firefox']
+  playwright:
+    name: 'Playwright E2E on Tests'
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Cypress run
-        uses: cypress-io/github-action@v2
+      - uses: actions/checkout@v4
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v4
         with:
-          install-command: yarn install
-          browser: ${{ matrix.browser }}
-          env: NEXT_PUBLIC_USE_LOCAL_CLIENT=1
-          build: yarn build:e2e
-          command: yarn test:e2e
-          start: yarn start:e2e
-          wait-on: 'http://localhost:3000'
-          # wait for 3 minutes for the server to respond
-          wait-on-timeout: 180
-      - uses: actions/upload-artifact@v2
-        if: failure()
+          node-version-file: '.nvmrc'
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        id: pnpm-install
         with:
-          name: cypress-screenshots
-          path: cypress/screenshots
-      # Test run video was always captured, so this action uses "always()" condition
-      - uses: actions/upload-artifact@v2
+          package_json_file: package.json
+          run_install: false
+      - name: Install dependencies
+        run: pnpm install
+      - name: Build root package
+        run: pnpm build
+      - name: Install playwright
+        working-directory: playwright/tina-playwright
+        run: npx playwright install
+      - name: Run Playwright tests
+        working-directory: playwright/tina-playwright
+        run: npx playwright test
+      - name: Playwright report summary
+        uses: daun/playwright-report-summary@v3
         if: always()
         with:
-          name: cypress-videos
-          path: cypress/videos
+          job-summary: true
+          report-file: playwright/tina-playwright/playwright-test-results.json
+          comment-title: 'Playwright E2E Test Results'

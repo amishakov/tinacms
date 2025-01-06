@@ -1,0 +1,29 @@
+{
+  "extends": "../../../base.tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "skipLibCheck": true,
+    "noImplicitAny": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "moduleResolution": "node",
+    "module": "ESNext",
+    "lib": [
+      "ESNext"
+    ],
+    "target": "ESNext",
+    "types": [
+      "vite/client"
+    ],
+  },
+  "exclude": [
+    "node_modules",
+    "dist"
+  ],
+  "include": [
+    "src",
+    "vite-env.d.ts"
+  ]
+}

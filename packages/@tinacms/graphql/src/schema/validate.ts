@@ -1,30 +1,19 @@
 /**
-Copyright 2021 Forestry.io Holdings, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+
 */
 
-import { addNamespaceToSchema } from '../ast-builder'
-import _ from 'lodash'
+import { addNamespaceToSchema } from '@tinacms/schema-tools'
+import deepClone from 'lodash.clonedeep'
 import { sequential } from '../util'
 import * as yup from 'yup'
 
-import type {
-  TinaFieldEnriched,
-  TinaCloudSchemaEnriched,
-  TinaCloudSchemaBase,
-  TinaCloudCollectionEnriched,
-  TinaCloudTemplateEnriched,
-  TinaCloudCollection,
-} from '../types'
-import { TinaField } from '..'
+import {
+  type TinaField,
+  type Schema,
+  type Collection,
+  type Template,
+  validateTinaCloudSchemaConfig,
+} from '@tinacms/schema-tools'
 
 const FIELD_TYPES: TinaField['type'][] = [
   'string',
@@ -35,28 +24,31 @@ const FIELD_TYPES: TinaField['type'][] = [
   'reference',
   'object',
   'rich-text',
+  'password',
 ]
 
-export const validateSchema = async (
-  schema: TinaCloudSchemaBase
-): Promise<TinaCloudSchemaBase> => {
-  // @ts-ignore
-  const schema2 = addNamespaceToSchema(
-    _.cloneDeep(schema)
-  ) as TinaCloudSchemaEnriched
+export const validateSchema = async (schema: Schema) => {
+  const schema2: Schema<true> = addNamespaceToSchema<Schema<true>>(
+    deepClone(schema) as unknown as Schema<true>
+  )
   const collections = await sequential(
     schema2.collections,
     async (collection) => validateCollection(collection)
   )
   validationCollectionsPathAndMatch(collections)
+  if (schema2.config) {
+    const config = validateTinaCloudSchemaConfig(schema2.config)
+    return {
+      collections,
+      config,
+    }
+  }
   return {
     collections,
   }
 }
 
-const validationCollectionsPathAndMatch = (
-  collections: TinaCloudCollection<true>[]
-) => {
+const validationCollectionsPathAndMatch = (collections: Collection<true>[]) => {
   // Early return if no two `path` are the same
   const paths = collections.map((x) => x.path)
   if (paths.length === new Set(paths).size) {
@@ -77,10 +69,13 @@ const validationCollectionsPathAndMatch = (
     .filter((x) => {
       return typeof x?.match === 'undefined'
     })
-    .map((x) => x.path)
+    .map((x) => `${x.path}${x.format || 'md'}`)
 
   if (noMatchCollections.length !== new Set(noMatchCollections).size) {
-    throw new Error('path must be unique when no `match` is provided')
+    throw new Error(
+      // TODO: add a link to the docs
+      'Two collections without match can not have the same `path`. Please make the `path` unique or add a matches property to the collection.'
+    )
   }
 
   // Make sure both path and match are not the same
@@ -98,47 +93,67 @@ const validationCollectionsPathAndMatch = (
     .filter((x) => {
       return typeof x.path !== 'undefined' && typeof x.match !== 'undefined'
     })
-    .map((x) => `${x.path}|${x.match}`)
+    .map(
+      (x) =>
+        `${x.path}|${x?.match?.exclude || ''}|${x?.match?.include || ''}|${
+          x.format || 'md'
+        }`
+    )
 
   if (hasMatchAndPath.length !== new Set(hasMatchAndPath).size) {
-    throw new Error('Both `match` and `path` can not be the same')
+    throw new Error(
+      'Can not have two or more collections with the same path and match. Please update either the path or the match to be unique.'
+    )
   }
 
   // Check to make sure that when two paths are the same they all have different matches
-  // checks this type of invalid state
-  //  {
-  //   path: 'content/posts',
-  //   matches: '**/*.en.md'
-  // },
-  // {
-  //   path: 'content/posts'
-  // }
   const groupbyPath = collections.reduce((r, a) => {
-    r[a.path] = r[a.path] || []
-    r[a.path].push(a)
+    const key = `${a.path}|${a.format || 'md'}`
+    r[key] = r[key] || []
+    r[key].push(a)
     return r
   }, Object.create(null))
-
   Object.keys(groupbyPath).forEach((key) => {
-    const collectionsArr: TinaCloudCollection<true>[] = groupbyPath[key]
+    const collectionsArr: Collection<true>[] = groupbyPath[key]
+
+    // if there is only one collection with this path
     if (collectionsArr.length === 1) {
       return
     }
-    // check if one or more does not have the "matches key" it is invalid
-    const matches = collectionsArr.filter((x) => {
-      return typeof x.match !== 'undefined'
-    })
-    if (matches.length !== collections.length) {
-      throw new Error('path must be unique when no `match` is provided')
+
+    // check to make sure each collection has a match
+    // checks this type of invalid state
+    //  {
+    //   path: 'content/posts',
+    //   matches: '**/*.en.md'
+    // },
+    // {
+    //   path: 'content/posts'
+    // }
+    if (collectionsArr.some((x) => typeof x.match === 'undefined')) {
+      throw new Error(
+        "Can not have two or more collections with the same path and format if one doesn't have a match property"
+      )
     }
+
+    const matches = collectionsArr.map((x) =>
+      typeof x?.match === 'object' ? JSON.stringify(x.match) : ''
+    )
+    if (matches.length === new Set(matches).size) {
+      return
+    }
+    throw new Error(
+      'Can not have two or more collections with the same path format and match. Please update either the path or the match to be unique.'
+    )
   })
 }
 
+// TODO: use ZOD instead of Yup
 const validateCollection = async (
-  collection: TinaCloudCollectionEnriched
-): Promise<TinaCloudCollectionEnriched> => {
-  let templates: TinaCloudTemplateEnriched[] = []
-  let fields: TinaFieldEnriched[] = []
+  collection: Collection<true>
+): Promise<Collection<true>> => {
+  let templates: Template<true>[] = []
+  let fields: TinaField<true>[] = []
   const messageName = collection.namespace.join('.')
   const collectionSchema = yup.object({
     name: yup
@@ -150,7 +165,12 @@ const validateCollection = async (
       .required(),
     path: yup
       .string()
-      .required()
+      .test('is-required', 'path is a required field', (value) => {
+        if (value === '') {
+          return true
+        }
+        return yup.string().required().isValidSync(value)
+      })
       .transform((value) => {
         return value.replace(/^\/|\/$/g, '')
       }),
@@ -158,27 +178,24 @@ const validateCollection = async (
   await collectionSchema.validate(collection)
   const validCollection = (await collectionSchema.cast(
     collection
-  )) as TinaCloudCollectionEnriched
+  )) as Collection<true>
   if (validCollection.templates) {
     templates = await sequential(
       validCollection.templates,
       async (template) => {
-        if (typeof template === 'string') {
-          throw new Error(`Global templates are not yet supported`)
-        }
         const fields = await sequential(template.fields, async (field) => {
           return validateField(field)
         })
         return {
           ...validCollection,
           ...fields,
-        } as TinaCloudTemplateEnriched
+        } as Template<true>
       }
     )
   }
   if (validCollection.fields) {
     if (typeof validCollection.fields === 'string') {
-      throw new Error(`Global templates are not yet supported`)
+      throw new Error('Global templates are not yet supported')
     }
     fields = await sequential(validCollection.fields, async (field) => {
       return validateField(field)
@@ -186,14 +203,14 @@ const validateCollection = async (
     return {
       ...validCollection,
       fields,
-    } as TinaCloudCollectionEnriched
+    } as Collection<true>
   }
 
   return collection
 }
 const validateField = async (
-  field: TinaFieldEnriched
-): Promise<TinaFieldEnriched> => {
+  field: TinaField<true>
+): Promise<TinaField<true>> => {
   const messageName = field.namespace.join('.')
   const schema = yup.object({
     name: yup
@@ -213,5 +230,7 @@ const validateField = async (
   })
   await schema.validate(field)
 
-  return field
+  const validField = (await schema.cast(field)) as TinaField<true>
+
+  return validField
 }

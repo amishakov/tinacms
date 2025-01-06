@@ -1,18 +1,9 @@
 /**
-Copyright 2021 Forestry.io Holdings, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+
 */
 
 import { v2 as cloudinary } from 'cloudinary'
-import { Media, MediaListOptions } from '@tinacms/toolkit'
+import type { Media, MediaListOptions } from 'tinacms'
 import path from 'path'
 import { NextApiRequest, NextApiResponse } from 'next'
 import multer from 'multer'
@@ -65,6 +56,7 @@ async function uploadMedia(req: NextApiRequest, res: NextApiResponse) {
   const upload = promisify(
     multer({
       storage: multer.diskStorage({
+        // @ts-ignore
         directory: (req, file, cb) => {
           cb(null, '/tmp')
         },
@@ -75,18 +67,24 @@ async function uploadMedia(req: NextApiRequest, res: NextApiResponse) {
     }).single('file')
   )
 
+  // @ts-ignore
   await upload(req, res)
 
   const { directory } = req.body
 
-  //@ts-ignore
-  const result = await cloudinary.uploader.upload(req.file.path, {
-    folder: directory.replace(/^\//, ''),
-    use_filename: true,
-    overwrite: false,
-  })
+  try {
+    //@ts-ignore
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: directory.replace(/^\//, ''),
+      use_filename: true,
+      overwrite: false,
+      resource_type: 'auto',
+    })
 
-  res.json(result)
+    res.json(result)
+  } catch (error) {
+    res.status(error.http_code).json({ message: error.message })
+  }
 }
 
 async function listMedia(
@@ -95,21 +93,26 @@ async function listMedia(
   opts?: CloudinaryOptions
 ) {
   try {
-    const {
-      directory = '""',
-      limit = 500,
-      offset,
-    } = req.query as MediaListOptions
+    const mediaListOptions: MediaListOptions = {
+      directory: (req.query.directory as string) || '""',
+      limit: parseInt(req.query.limit as string, 10) || 500,
+      offset: req.query.offset as string,
+      filesOnly: req.query.filesOnly === 'true' || false,
+    }
 
     const useRootDirectory =
-      !directory || directory === '/' || directory === '""'
+      !mediaListOptions.directory ||
+      mediaListOptions.directory === '/' ||
+      mediaListOptions.directory === '""'
 
-    const query = useRootDirectory ? 'folder=""' : `folder="${directory}"`
+    const query = useRootDirectory
+      ? 'folder=""'
+      : `folder="${mediaListOptions.directory}"`
 
     const response = await cloudinary.search
       .expression(query)
-      .max_results(limit)
-      .next_cursor(offset as string)
+      .max_results(mediaListOptions.limit)
+      .next_cursor(mediaListOptions.offset as string)
       .execute()
 
     const files = response.resources.map(getCloudinaryToTinaFunc(opts))
@@ -122,28 +125,52 @@ async function listMedia(
         return cloudinary.api.sub_folders(directory)
       }
     }
+    let folders: string[] = []
+    let folderRes = null
 
-    // @ts-ignore
-    let { folders } = await cloudinary.api.folders(directory)
+    if (mediaListOptions.filesOnly) {
+      res.json({
+        items: [...files],
+        offset: response.next_cursor,
+      })
+      return
+    }
 
-    folders = folders.map(function (folder: {
-      name: string
-      path: string
-    }): Media {
-      'empty-repo/004'
-      return {
-        id: folder.path,
-        type: 'dir',
-        filename: path.basename(folder.path),
-        directory: path.dirname(folder.path),
+    try {
+      // @ts-ignore
+      folderRes = await cloudinary.api.folders(mediaListOptions.directory)
+    } catch (e) {
+      // If the folder doesn't exist, just return an empty array
+      if (e.error?.message.startsWith("Can't find folder with path")) {
+        // ignore
+      } else {
+        console.error('Error getting folders')
+        console.error(e)
+        throw e
       }
-    })
+    }
+
+    if (folderRes?.folders) {
+      folders = folderRes.folders.map(function (folder: {
+        name: string
+        path: string
+      }): Media {
+        'empty-repo/004'
+        return {
+          id: folder.path,
+          type: 'dir',
+          filename: path.basename(folder.path),
+          directory: path.dirname(folder.path),
+        }
+      })
+    }
 
     res.json({
       items: [...folders, ...files],
       offset: response.next_cursor,
     })
   } catch (e) {
+    console.log(e)
     res.status(500)
     const message = findErrorMessage(e)
     res.json({ e: message })
@@ -196,10 +223,17 @@ function getCloudinaryToTinaFunc(opts: CloudinaryOptions) {
       filename,
       directory,
       src: file[sel],
-      previewSrc: transformCloudinaryImage(
-        file[sel],
-        'w_75,h_75,c_fill,q_auto'
-      ),
+      thumbnails: {
+        '75x75': transformCloudinaryImage(file[sel], 'w_75,h_75,c_fit,q_auto'),
+        '400x400': transformCloudinaryImage(
+          file[sel],
+          'w_400,h_400,c_fit,q_auto'
+        ),
+        '1000x1000': transformCloudinaryImage(
+          file[sel],
+          'w_1000,h_1000,c_fit,q_auto'
+        ),
+      },
       type: 'file',
     }
   }

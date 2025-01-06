@@ -1,5 +1,411 @@
 # Change Log
 
+## 1.3.1
+
+### Patch Changes
+
+- [#5276](https://github.com/tinacms/tinacms/pull/5276) [`f90ef4d`](https://github.com/tinacms/tinacms/commit/f90ef4d92ae7b21c8c610d14af9510354a3969c6) Thanks [@Ben0189](https://github.com/Ben0189)! - Updates minor and patch dependencies
+
+## 1.3.0
+
+### Minor Changes
+
+- [#5098](https://github.com/tinacms/tinacms/pull/5098) [`c5dad82`](https://github.com/tinacms/tinacms/commit/c5dad82a3f1fc4f7686f1503a7894dfacffa8c36) Thanks [@Jord-Gui](https://github.com/Jord-Gui)! - Add table plugin to rich-text-editor
+
+## 1.2.3
+
+### Patch Changes
+
+- [#4843](https://github.com/tinacms/tinacms/pull/4843) [`4753c9b`](https://github.com/tinacms/tinacms/commit/4753c9b53854d19212229f985bc445b2794fad9a) Thanks [@JackDevAU](https://github.com/JackDevAU)! - ⬆️ Update Minor & Patch Dependencies Versions
+
+## 1.2.2
+
+### Patch Changes
+
+- [#4804](https://github.com/tinacms/tinacms/pull/4804) [`d08053e`](https://github.com/tinacms/tinacms/commit/d08053e758b6910afa8ab8952a40984921cccbc4) Thanks [@dependabot](https://github.com/apps/dependabot)! - ⬆️ Updates Typescript to v5.5, @types/node to v22.x, next.js to latest version 14.x, and removes node-fetch
+
+## 1.2.1
+
+### Patch Changes
+
+- acf8430: Add rollup option to ignore "MODULE_LEVEL_DIRECTIVE"
+
+## 1.2.0
+
+### Minor Changes
+
+- 324950a: Updates Plate Editor to latest version 36.
+
+  - Upgrades all remaining packages `Typescript` to version `^5`
+  - Adds Shadcn/ui styles/colours to our `tinatailwind` config (`packages/@tinacms/cli/src/next/vite/tailwind.ts`)
+  - Replaces some `lodash` deps with either the specific function i.e. `lodash.set` or implements them in a utility file
+  - Updates and removes old version of plate (`plate-headless`) for latest version `^36`
+  - Starts removing and cleaning up some of the old Plate code.
+
+## 1.1.6
+
+### Patch Changes
+
+- f567fc8: More React 18 upgrades and fixes
+
+## 1.1.5
+
+### Patch Changes
+
+- 0503072: update ts, remove rimraf, fix types
+- dffa355: Remove yarn for pnpm
+
+## 1.1.4
+
+### Patch Changes
+
+- 8ee81d026: fix watch script for window environment
+
+## 1.1.3
+
+### Patch Changes
+
+- a65ca13f2: ## TinaCMS Self hosted Updates
+
+  ### Changes in the database file
+
+  #### Deprecations and Additions
+
+  - **Deprecated**: `onPut`, `onDelete`, and `level` arguments in `createDatabase`.
+  - **Added**: `databaseAdapter` to replace `level`.
+  - **Added**: `gitProvider` to substitute `onPut` and `onDelete`.
+  - **New Package**: `tinacms-gitprovider-github`, exporting the `GitHubProvider` class.
+  - **Interface Addition**: `gitProvider` added to `@tinacms/graphql`.
+  - **Addition**: Generated database client.
+
+  #### Updated `database.ts` Example
+
+  ```typescript
+  import { createDatabase, createLocalDatabase } from '@tinacms/datalayer'
+  import { MongodbLevel } from 'mongodb-level'
+  import { GitHubProvider } from 'tinacms-gitprovider-github'
+
+  const isLocal = process.env.TINA_PUBLIC_IS_LOCAL === 'true'
+
+  export default isLocal
+    ? createLocalDatabase()
+    : createDatabase({
+        gitProvider: new GitHubProvider({
+          branch: process.env.GITHUB_BRANCH,
+          owner: process.env.GITHUB_OWNER,
+          repo: process.env.GITHUB_REPO,
+          token: process.env.GITHUB_PERSONAL_ACCESS_TOKEN,
+        }),
+        databaseAdapter: new MongodbLevel<string, Record<string, any>>({
+          collectionName: 'tinacms',
+          dbName: 'tinacms',
+          mongoUri: process.env.MONGODB_URI,
+        }),
+        namespace: process.env.GITHUB_BRANCH,
+      })
+  ```
+
+  ### Migrating `database.ts`
+
+  #### a. Replacing `onPut` and `onDelete` with `gitProvider`
+
+  - **GitHubProvider Usage**: Replace `onPut` and `onDelete` with `gitProvider`, using the provided `GitHubProvider` for GitHub.
+
+  ```typescript
+  const gitProvider = new GitHubProvider({
+    branch: process.env.GITHUB_BRANCH,
+    owner: process.env.GITHUB_OWNER,
+    repo: process.env.GITHUB_REPO,
+    token: process.env.GITHUB_PERSONAL_ACCESS_TOKEN,
+  })
+  ```
+
+  - **Custom Git Provider**: Implement the `GitProvider` interface for different git providers.
+
+  If you are not using Github as your git provider, you can implement the `GitProvider` interface to use your own git provider.
+
+  ```typescript
+  class CustomGitProvider implements GitProvider
+      async onPut(key: string, value: string)
+          // ...
+
+      async onDelete(key: string)
+          // ...
+
+
+  const gitProvider = new CustomGitProvider();
+  ```
+
+  #### b. Renaming `level` to `databaseAdapter`
+
+  - **Renaming in Code**: Change `level` to `databaseAdapter` for clarity.
+
+  ```diff
+  createDatabase({
+  -    level: new MongodbLevel<string, Record<string, any>>(...),
+  +    databaseAdapter: new MongodbLevel<string, Record<string, any>>(...),
+  })
+  ```
+
+  #### c. `createLocalDatabase` Function
+
+  - **Usage**: Implement a local database with the `createLocalDatabase` function.
+
+  ```typescript
+  import { createLocalDatabase } from '@tinacms/datalayer'
+  createLocalDatabase(port)
+  ```
+
+  #### d. Consolidated Example
+
+  - **Updated `database.{ts,js}` File**:
+
+  ```typescript
+  import { createDatabase, createLocalDatabase, GitHubProvider } from '@tinacms/datalayer';
+  import { MongodbLevel } from 'mongodb-level';
+  const isLocal = process.env.TINA_PUBLIC_IS_LOCAL === 'true';
+  export default isLocal
+    ? createLocalDatabase()
+    : createDatabase({
+        gitProvider: new GitHubProvider(...),
+        databaseAdapter: new MongodbLevel<string, Record<string, any>>(...),
+      });
+  ```
+
+  ### Summary of Authentication Updates in Config
+
+  #### a. AuthProvider and AbstractAuthProvider
+
+  - **New**: `authProvider` in `defineConfig`.
+  - **Class**: `AbstractAuthProvider` for extending new auth providers.
+  - **Clerk Auth Provider**: New provider added.
+  - **Renaming**: `admin.auth` to `admin.authHooks`.
+  - **Deprecation**: `admin.auth`.
+
+  #### b. Auth Provider in Internal Client and Config
+
+  - **Transition**: From auth functions to `authProvider` class.
+
+  #### c. Migration for Authentication
+
+  - **Previous API**:
+
+  ```javascript
+  defineConfig({
+    admin: {
+      auth: {
+        login() {},
+        logout() {},
+        //...
+      },
+    },
+    //...
+  })
+  ```
+
+  - **New API**:
+
+  ```javascript
+  import { AbstractAuthProvider } from 'tinacms'
+  class CustomAuthProvider extends AbstractAuthProvider {
+    login() {}
+    logout() {}
+    //...
+  }
+  defineConfig({
+    authProvider: new CustomAuthProvider(),
+    //...
+  })
+  ```
+
+  ### TinaCMS Self Hosted backend updates
+
+  - **New:** TinaNodeBackend is exported from `@tinacms/datalayer`. This is used to host the TinaCMS backend in a single function.
+  - **New:** `LocalBackendAuthProvider` is exported from `@tinacms/datalayer`. This is used to host the TinaCMS backend locally.
+
+  - **New:** `AuthJsBackendAuthProvider` is exported from `tinacms-authjs`. This is used to host the TinaCMS backend with AuthJS.
+
+  ### Migrating the TinaCMS backend
+
+  Now, instead of hosting the in /tina/api/gql.ts file, the entire TinaCMS backend (including auth) will be hosted in a single backend function.
+
+  `/api/tina/[...routes].{ts,js}`
+
+  ```typescript
+  import { TinaNodeBackend, LocalBackendAuthProvider } from '@tinacms/datalayer'
+
+  import { TinaAuthJSOptions, AuthJsBackendAuthProvider } from 'tinacms-authjs'
+
+  import databaseClient from '../../../tina/__generated__/databaseClient'
+
+  const isLocal = process.env.TINA_PUBLIC_IS_LOCAL === 'true'
+
+  const handler = TinaNodeBackend({
+    authProvider: isLocal
+      ? LocalBackendAuthProvider()
+      : AuthJsBackendAuthProvider({
+          authOptions: TinaAuthJSOptions({
+            databaseClient: databaseClient,
+            secret: process.env.NEXTAUTH_SECRET,
+          }),
+        }),
+    databaseClient,
+  })
+
+  export default (req, res) => {
+    // Modify the request here if you need to
+    return handler(req, res)
+  }
+  ```
+
+  These changes are put in place to make self hosted TinaCMS easier to use and more flexible.
+
+  Please [check out the docs](https://tina.io/docs/self-hosted/overview) for more information on self hosted TinaCMS.
+
+## 1.1.2
+
+### Patch Changes
+
+- 121bd9fc4: Absorb @tinacms/toolkit into tinacms
+
+  fix: Use clean page-sizes on media manager (to make pagination more obvious)
+
+  Fix issue with uploading media in a folder with tina cloud
+
+## 1.1.1
+
+### Patch Changes
+
+- bc812441b: Use .mjs extension for ES modules
+
+## 1.1.0
+
+### Minor Changes
+
+- 76c984bcc: Use new API endpoint in content api reqests
+
+### Patch Changes
+
+- cbc1fb919: Provide browser-specific version of @tinacms/mdx
+- 3a1edd50d: Bundle the MDX package with its dependencies so we can avoid awkward import issues related to the remark ecosystem modules
+
+## 1.0.4
+
+### Patch Changes
+
+- b095d06a9: Bump esbuild versions in graphql/scripts
+
+## 1.0.3
+
+### Patch Changes
+
+- be3eac32f: Adds grid view to media manager
+- f831dcf4f: security: update some deps
+
+## 1.0.2
+
+### Patch Changes
+
+- efd56e769: Remove license headers
+
+## 1.0.1
+
+### Patch Changes
+
+- b2952a298: Adds meta wrapper for list-type fields that displays errors. Adds optional min/max for list-type fields that controls add/remove UI. Removes duplicate label from group field.
+
+## 1.0.0
+
+### Major Changes
+
+- 958d10c82: Tina 1.0 Release
+
+  Make sure you have updated to th "iframe" path: https://tina.io/blog/upgrading-to-iframe/
+
+## 0.51.3
+
+### Patch Changes
+
+- 03aa3e09e: Remove the use of ESM package, which allowed CJS scripts to run as ES modules. This was initially used for yarn pnp support but is no longer necessary.
+
+## 0.51.2
+
+### Patch Changes
+
+- 2422e505d: Removed styled-components as a dependency in tinacms.
+  Removed deprecated react-toolbar in @tinacms/toolkit.
+
+## 0.51.1
+
+### Patch Changes
+
+- 9fbb4e557: Fix issue building node packages to non-index.js files
+
+## 0.51.0
+
+### Minor Changes
+
+- 7b0dda55e: Updates to the `rich-text` component as well the shape of the `rich-text` field response from the API
+
+  - Adds support for isTitle on MDX elements
+  - Fixes issues related to nested marks
+  - Uses monaco editor for code blocks
+  - Improves styling of nested list items
+  - Improves handling of rich-text during reset
+  - No longer errors on unrecognized JSX/html, instead falls back to print `No component provided for <compnonent name>`
+  - No longer errors on markdown parsing errors, instead falls back to rendering markdown as a string, customizable via the TinaMarkdown component (invalid_markdown prop)
+  - Prepares rich-text component for raw mode - where you can edit the raw markdown directly in the Tina form. This will be available in future release.
+
+### Patch Changes
+
+- 8183b638c: ## Adds a new "Static" build option.
+
+  This new option will build tina into a static `index.html` file. This will allow someone to use tina without having react as a dependency.
+
+  ### How to update
+
+  1.  Add a `.tina/config.{js,ts,tsx,jsx}` with the default export of define config.
+
+  ```ts
+  // .tina/config.ts
+  import schema from './schema'
+
+  export default defineConfig({
+    schema: schema,
+    //.. Everything from define config in `schema.ts`
+    //.. Everything from `schema.config`
+  })
+  ```
+
+  2. Add Build config
+
+  ```
+  .tina/config.ts
+
+  export default defineConfig({
+     build: {
+       outputFolder: "admin",
+       publicFolder: "public",
+    },
+    //... other config
+  })
+  ```
+
+  3. Go to `http://localhost:3000/admin/index.html` and view the admin
+
+## 0.50.9
+
+### Patch Changes
+
+- 2ef5a1f33: fix scale isssue, truncate form label to filename
+
+## 0.50.8
+
+### Patch Changes
+
+- 1f7d3ca3d: Use custom wrapper class for tailwind type plugin
+- 6c17f0160: fix scale isssue, truncate form label to filename
+
 ## 0.50.7
 
 ### Patch Changes

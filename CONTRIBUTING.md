@@ -8,28 +8,34 @@ Before a Pull Request can be accepted, all contributors must sign the [Contribut
 
 ## Getting started
 
-Currently this is a monorepo built with Yarn V2 and Plug-n-Play.
+Currently this is a monorepo built with Turborepo and PNPM
 
-You _should_ :fingers_crossed: be able to just run these commands. (Please make a note of any hang-ups you ran into during this process)
+You _should_ :fingers_crossed: be able to just run these commands. (Please make a note of any hang-ups you ran into during this process and feel free to update this doc with any tips you have for others.)
+
+> [!TIP] We recommend using [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm) to switch Node versions automatically
+
+> Having issues? Feel free to reach out on [Discord](https://discord.com/invite/zumN63Ybpf)
 
 ```sh
-# check the node version, this repo only supports node 14.x.x at the moment
+# check the node version, the .nvmrc file lists the required version
 node -v
-# check yarn version, this repo ships with yarn so it should be 2.4.1
-yarn -v
-# it should show 2.4.1, you'll definitely need +2.0
-yarn install
+# install pnpm via corepack
+corepack enable
+# ensure you have the correct version (check version number in package.json)
+pnpm -v
+# install dependencies
+pnpm install
 # build all the packages
-yarn run build
+pnpm run build
 # watch all packages
-yarn run watch
+pnpm run watch
 # in a separate tab, navigate to starter project
-cd experimental-examples/tina-cloud-starter
+cd examples/basic-iframe
 # start the dev server
-yarn dev
+pnpm run dev
 ```
 
-That should allow you to see 2 things: The Altair graphql playground at `http://localhost:4001/altair` and the demo app at `http://localhost:3000`. Tina form changes should result in `experimental-examples//tina-cloud-starter/content/marketing-pages/index.md` being changed.
+Now you should be able to navigate to http://localhost:3000 and see the starter project.
 
 ## PR Workflow
 
@@ -37,7 +43,7 @@ All pull requests should include a changeset. To create a changeset, ensure you 
 
 ```sh
 # from the root of the repo
-yarn changeset
+pnpm changeset
 ```
 
 Choose the package or packages that were affected by your work. _(Tip: you may have to wait a couple of seconds after selecting your packages, sometimes it doesn't get registered and it'll ask you to pick again)_
@@ -48,6 +54,8 @@ Choose the package or packages that were affected by your work. _(Tip: you may h
 
 Choose the _type_ of version change they should get. Skipping `major` will ask you if you want to select `minor`, if you skip that it will assume `patch`.
 
+> Note: If you're not sure what to choose, `patch` is usually a safe bet.
+
 ![](https://github.com/tinacms/tina-graphql-gateway/blob/main/meta/yarn-changeset-2.png)
 
 Proceed through the prompts until you have a new `.md` file in the `.changeset` directory. It'll look [like this](https://github.com/tinacms/tina-graphql-gateway/blob/348ef1e57e2e61fb9896d616aabc6f3c85d37140/.changeset/pretty-sloths-return.md)
@@ -57,29 +65,29 @@ Proceed through the prompts until you have a new `.md` file in the `.changeset` 
 
 Feel free to edit this file if you want to alter your messages or which versions will be bumped.
 
-### Commit your changes and push to Github and creat a PR
+### Commit your changes and push to GitHub and create a PR
 
 The PR will be checked for a changeset file. You're done!
 
-Once the PR is merged and has completed it's actions, you can install the changes by installing the @dev version of the package. So if there were changes to `@tinacms/graphql` merged into `main`, you can test them out by running `yarn add tina-grahql@beta`.
+Once the PR is merged and has completed it's actions, you can install the changes by installing the @dev version of the package. So if there were changes to `@tinacms/graphql` merged into `main`, you can test them out by running `pnpm add @tinacms/graphql@beta`.
 
 However, your changes won't yet be published to NPM under the `@latest` tag yet. So without specifying the `@beta` tag, users won't get your latest changes. Instead, when the PR is merged to `main`, another action will kick in. It will create a _separate_ PR which is essentially all of the active changesets in flight. So several merged PRs may result in several pending changesets.
 
-This PR calls `yarn changeset version`, which _deletes_ changeset files and updates `CHANGELOG.md` files in each package. This PR will stay up to date as new changesets enter the `main` branch. [Here's an example](https://github.com/tinacms/tina-graphql-gateway/pull/316) of what that looks like. Only once this PR is merged will the latest changes be generally available.
+This PR calls `pnpm changeset version`, which _deletes_ changeset files and updates `CHANGELOG.md` files in each package. This PR will stay up to date as new changesets enter the `main` branch. [Here's an example](https://github.com/tinacms/tina-graphql-gateway/pull/316) of what that looks like. Only once this PR is merged will the latest changes be generally available.
 
 ### For maintainers: Merge the "Version Packages" PR _back_ to `main`
 
 Previous PRs to main would _not_ have triggered NPM packages to be published because their `versions` haven't been bumped. That's the purpose of the "Version Package" action. So these merges will now have updated `versions`, resulting in publishes to NPM.
 
-## Creating a dev release
+## Creating a dev release (core team only)
 
 Ensure you have created a changeset and have a clean `git` working directory.
 
-Build your changes with `yarn build`
+Build your changes with `pnpm build`
 
-Run `yarn version:snapshot`
+Run `pnpm version:snapshot`
 
-Run `yarn publish:dev`
+Run `pnpm publish:dev`
 
 If you have 2FA, this will prompt you to enter you one-time code for each package you publish.
 
@@ -87,77 +95,33 @@ Run `git checkout -- .` This will clear out the versioning changes.
 
 ---
 
-## Working with the GitHub Manager locally
-
-In `packages/@tinacms/graphql/src/index.ts`, replace:
-
-```ts
-const manager = new FileSystemManager({ rootPath: projectRoot })
-```
-
-with:
-
-```ts
-const manager = new GithubManager({
-  rootPath: 'experimental-examples/tina-cloud-starter',
-  accessToken: '<TOKEN>',
-  owner: 'tinacms',
-  repo: 'tina-graphql-gateway',
-  ref: '<BRANCH>',
-  cache: simpleCache,
-})
-```
-
-Use whichever branch you're currently working with, and generate and provide a GitHub personal access token with full permissions and SSO enabled with tinacms authorized.
-
 ## Trying out changes to a package
 
 ### Local
 
-If the changes affect local use of the packages (i.e. not the ContentAPI), use the tina-cloud-starter found in the examples directory of this repo. That starter will require a .env file with the following values:
+If the changes affect local use of the packages (i.e. not the ContentAPI), use the tina-cloud-starter found in the examples directory of this repo.
+
+To use a **tinacms** repository cloned locally, when running your application, use the `--rootPath` flag:
 
 ```
-NEXT_PUBLIC_ORGANIZATION_NAME=<ANYTHING YOU WANT>
-NEXT_PUBLIC_TINA_CLIENT_ID=<ANYTHING YOU WANT>
-NEXT_PUBLIC_USE_LOCAL_CLIENT=1
+node tinacms/packages/@tinacms/cli/bin/tinacms dev --rootPath {{ APPLICATION PROJECT PATH }}
 ```
 
-### Backend
+e.g. `node tinacms/packages/@tinacms/cli/bin/tinacms dev --rootPath ~/Developer/tina/tina-cloud-starter`
 
-If the changes you want to try out will be in the ContentAPI, then you will need to canary release your package changes. Ask somebody about how to do this.
-
-## Misc
-
-### Getting the starter to reference a different Identity API or ContentAPI
-
-If you've made changes to the ContentAPI or Identity and you want the starter to use the different API, use these override env variables in the tina-cloud-starter:
+Then inside another terminal (in the tinacms project), run:
 
 ```
-IDENTITY_API_OVERRIDE=<URL TO IDENTITY>
-CONTENT_API_OVERRIDE=<URL TO CONTENTAPI>
+pnpm watch
 ```
 
-### Import errors
-
-Are you getting lots of import errors in VSCode and yet it builds fine? In VSCode try pressing cmd+shift+p, search for `select typescript version` and choose `use workspace version`.
-
-### Troubleshooting
-
-If you are running into errors while trying to build or run examples here are some common fixes to try
-
-- Make sure the repo is up to date by running `git checkout main` and `git pull origin main`
-- Try cleaning the repo by running `yarn nuke` at the root of the repo. This script removes all build outputs
-- After running `yarn nuke`, `yarn install` and `yarn watch` (or `yarn build`) must be run before doing anything else.
-- If you are still having issues feel free to reach out on our [Community Discord](https://discord.com/invite/zumN63Ybpf)
+> ### Warning
+>
+> This will only work for packages loaded by webpack. That means that environments which don't use
+> webpack (i.e. SSR builds) will not use this alias
 
 ## E2E tests
 
-In order to run the Cypress E2E tests:
+In order to run the Playwright E2E tests locally:
 
-1. Build and start the E2E test project
-   ```sh
-   NEXT_PUBLIC_USE_LOCAL_CLIENT=1
-   yarn build:e2e
-   yarn start:e2e
-   ```
-2. Run the tests in a separate terminal `yarn test:dev` or `yarn test:e2e`
+Please refer to the readme file in playwright/tina-playwright
