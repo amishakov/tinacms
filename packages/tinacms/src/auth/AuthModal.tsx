@@ -1,14 +1,5 @@
 /**
-Copyright 2021 Forestry.io Holdings, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+
 */
 
 import {
@@ -19,15 +10,15 @@ import {
   ModalActions,
 } from '@tinacms/toolkit'
 import { LoadingDots, Button } from '@tinacms/toolkit'
-import React, { useCallback, useState } from 'react'
-import styled from 'styled-components'
+import React, { useCallback, useEffect, useState } from 'react'
 
 interface ModalBuilderProps {
   title: string
-  message: string
+  message?: string
   error?: string
   actions: ButtonProps[]
   close(): void
+  children?: React.ReactNode
 }
 
 export function ModalBuilder(modalProps: ModalBuilderProps) {
@@ -36,8 +27,9 @@ export function ModalBuilder(modalProps: ModalBuilderProps) {
       <ModalPopup>
         <ModalHeader>{modalProps.title}</ModalHeader>
         <ModalBody padded>
-          <p>{modalProps.message}</p>
+          {modalProps.message && <p>{modalProps.message}</p>}
           {modalProps.error && <ErrorLabel>{modalProps.error}</ErrorLabel>}
+          {modalProps.children}
         </ModalBody>
         <ModalActions>
           {modalProps.actions.map((action) => (
@@ -49,9 +41,9 @@ export function ModalBuilder(modalProps: ModalBuilderProps) {
   )
 }
 
-export const ErrorLabel = styled.p`
-  color: var(--tina-color-error) !important;
-`
+export const ErrorLabel = ({ style = {}, ...props }) => (
+  <p style={{ ...style, color: 'var(--tina-color-error)' }} {...props} />
+)
 
 interface ButtonProps {
   name: string
@@ -61,8 +53,15 @@ interface ButtonProps {
 
 export const AsyncButton = ({ name, primary, action }: ButtonProps) => {
   const [submitting, setSubmitting] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    return () => setMounted(false)
+  }, [])
 
   const onClick = useCallback(async () => {
+    if (!mounted) return
     setSubmitting(true)
     try {
       await action()
@@ -71,10 +70,11 @@ export const AsyncButton = ({ name, primary, action }: ButtonProps) => {
       setSubmitting(false)
       throw e
     }
-  }, [action, setSubmitting])
+  }, [action, setSubmitting, mounted])
 
   return (
     <Button
+      data-test={name.replace(/\s/g, '-').toLowerCase()}
       variant={primary ? 'primary' : 'secondary'}
       onClick={onClick}
       busy={submitting}

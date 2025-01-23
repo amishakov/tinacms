@@ -1,59 +1,62 @@
-/**
-Copyright 2021 Forestry.io Holdings, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+import type {
+  Schema,
+  Collection,
+  Template as TinaTemplate,
+} from '@tinacms/schema-tools'
 
-import fs from 'fs-extra'
-import path from 'path'
-import { buildASTSchema } from 'graphql'
-import { indexDB } from './build'
-
-export { indexDB } from './build'
+import { buildDotTinaFiles } from './build'
 export { resolve } from './resolve'
-export { createDatabase } from './database'
-export type { QueryOptions } from './database'
-import type { Database } from './database'
-export type { Database } from './database'
-export type { Store } from '@tinacms/datalayer'
-export type { Bridge } from './database/bridge'
-export { sequential, assertShape } from './util'
-export { stringifyFile, parseFile } from './database/util'
+export { transformDocumentIntoPayload } from './resolver'
+export * from './resolver/error'
+export { TinaLevelClient } from './level/tinaLevel'
+export type { Level } from './database/level'
+export type {
+  QueryOptions,
+  OnDeleteCallback,
+  OnPutCallback,
+  DatabaseArgs,
+  GitProvider,
+  CreateDatabase,
+} from './database'
+export {
+  Database,
+  createDatabaseInternal,
+  createDatabase,
+  createLocalDatabase,
+} from './database'
+import type { Config } from '@tinacms/schema-tools'
+export { getChangedFiles, getSha, shaExists } from './git'
+export * from './auth/utils'
 
-export const buildSchema = async (
-  rootPath: string,
-  database: Database,
-  flags?: string[]
-) => {
-  const tempConfig = path.join(rootPath, '.tina', '__generated__', 'config')
-  const config = await fs
-    .readFileSync(path.join(tempConfig, 'schema.json'))
-    .toString()
-  await fs.rmdir(tempConfig, { recursive: true })
-  await indexDB({ database, config: JSON.parse(config), flags })
-  const gqlAst = await database.getGraphQLSchemaFromBridge()
-  return buildASTSchema(gqlAst)
+export { sequential, assertShape } from './util'
+export {
+  loadAndParseWithAliases,
+  stringifyFile,
+  parseFile,
+  scanAllContent,
+  scanContentByPaths,
+  transformDocument,
+} from './database/util'
+export { createSchema } from './schema/createSchema'
+export { buildDotTinaFiles }
+
+export type DummyType = unknown
+
+// TODO: Can we just remove this or rename buildDotFiles. Having a wrapper function is confusing.
+export const buildSchema = async (config: Config, flags?: string[]) => {
+  return buildDotTinaFiles({
+    config,
+    flags,
+  })
 }
 
-import type {
-  TinaCloudSchema as TinaCloudSchemaBase,
-  TinaCloudCollection as TinaCloudCollectionBase,
-  TinaCloudTemplateBase as TinaTemplate,
-  TinaFieldBase,
-} from './types'
+export type TinaSchema = Schema
+export type { TinaTemplate, Schema, Collection }
 
-export type TinaCloudSchema = TinaCloudSchemaBase<false>
-// Alias to remove Cloud
-export type TinaSchema = TinaCloudSchema
-export type TinaCloudCollection = TinaCloudCollectionBase<false>
-// Alias to remove Cloud
-export type TinaCollection = TinaCloudCollectionBase<false>
-export type TinaField = TinaFieldBase
-export type { TinaTemplate }
+// Bridge exports
+export {
+  FilesystemBridge,
+  AuditFileSystemBridge,
+} from './database/bridge/filesystem'
+export { IsomorphicBridge } from './database/bridge/isomorphic'
+export type { Bridge } from './database/bridge'

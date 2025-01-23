@@ -1,27 +1,18 @@
 /**
-Copyright 2021 Forestry.io Holdings, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+
 */
 
-import { TinaCloudSchema } from '../types'
+import type { Schema } from '../types'
 import { validateSchema } from '.'
 
-let consoleErrMock
+let consoleErrMock: any
 beforeEach(() => {
   consoleErrMock = jest.spyOn(console, 'error').mockImplementation()
 })
 afterEach(() => {
   consoleErrMock.mockRestore()
 })
-const validSchemaWithTemplates: TinaCloudSchema<false> = {
+const validSchemaWithTemplates: Schema = {
   collections: [
     {
       name: 'page',
@@ -39,7 +30,7 @@ const validSchemaWithTemplates: TinaCloudSchema<false> = {
   ],
 }
 
-const validSchema: TinaCloudSchema<false> = {
+const validSchema: Schema = {
   collections: [
     {
       name: 'page',
@@ -228,7 +219,7 @@ const schemaWitNoName = {
     },
   ],
 }
-const schemaWithDuplicateName: TinaCloudSchema<false> = {
+const schemaWithDuplicateName: Schema = {
   collections: [
     {
       name: 'foo',
@@ -243,7 +234,7 @@ const schemaWithDuplicateName: TinaCloudSchema<false> = {
   ],
 }
 
-const schemaWithDuplicateTemplates: TinaCloudSchema<false> = {
+const schemaWithDuplicateTemplates: Schema = {
   collections: [
     {
       name: 'foo',
@@ -264,7 +255,7 @@ const schemaWithDuplicateTemplates: TinaCloudSchema<false> = {
   ],
 }
 
-const schemaWithDeeplyNestedError: TinaCloudSchema<false> = {
+const schemaWithDeeplyNestedError = {
   collections: [
     {
       name: 'foo',
@@ -333,7 +324,7 @@ const schemaWithTemplatesAndFields = {
   ],
 }
 
-const schemaWithEmptyFields: TinaCloudSchema<false> = {
+const schemaWithEmptyFields: Schema = {
   collections: [
     {
       name: 'foo',
@@ -344,7 +335,7 @@ const schemaWithEmptyFields: TinaCloudSchema<false> = {
   ],
 }
 
-const schemaWithEmptyTemplates: TinaCloudSchema<false> = {
+const schemaWithEmptyTemplates: Schema = {
   collections: [
     {
       name: 'foo',
@@ -354,7 +345,7 @@ const schemaWithEmptyTemplates: TinaCloudSchema<false> = {
     },
   ],
 }
-const schemaWithInvalidFiledNesterUnderRichText: TinaCloudSchema<false> = {
+const schemaWithInvalidFiledNesterUnderRichText = {
   collections: [
     {
       name: 'foo',
@@ -430,72 +421,74 @@ const schemaWithIsTitleNotValid2 = {
 }
 describe('validateSchema', () => {
   it('Passes on a valid schema', () => {
-    validateSchema({ config: validSchema })
+    validateSchema({ schema: validSchema })
     expect(consoleErrMock).not.toHaveBeenCalled()
-    validateSchema({ config: validSchemaWithTemplates })
+    validateSchema({ schema: validSchemaWithTemplates })
     expect(consoleErrMock).not.toHaveBeenCalled()
   })
   it('fails when a bad format is given', () => {
     expect(() => {
-      validateSchema({ config: schemaWithBadFormat })
+      validateSchema({ schema: schemaWithBadFormat as Schema })
     }).toThrow()
   })
   it('fails when a no name is given', () => {
     expect(() => {
-      validateSchema({ config: schemaWitNoName })
+      validateSchema({ schema: schemaWitNoName as Schema })
     }).toThrow()
   })
   it('fails when two collections have the same name', () => {
     expect(() => {
-      validateSchema({ config: schemaWithDuplicateName })
+      validateSchema({ schema: schemaWithDuplicateName })
     }).toThrow()
   })
 
   it('fails when two templates have the same name', () => {
     expect(() => {
-      validateSchema({ config: schemaWithDuplicateTemplates })
+      validateSchema({ schema: schemaWithDuplicateTemplates })
     }).toThrow()
   })
   it('fails on deeply nested incorrect object', () => {
     expect(() => {
-      validateSchema({ config: schemaWithDeeplyNestedError })
+      validateSchema({ schema: schemaWithDeeplyNestedError as Schema })
     }).toThrow()
   })
   it('fails when templates and fields are provided', () => {
     expect(() => {
-      validateSchema({ config: schemaWithTemplatesAndFields })
+      validateSchema({ schema: schemaWithTemplatesAndFields as any })
     }).toThrow()
   })
   it('fails when fields is empty', () => {
     expect(() => {
-      validateSchema({ config: schemaWithEmptyFields })
+      validateSchema({ schema: schemaWithEmptyFields })
     }).toThrow()
   })
   it('fails when templates is empty', () => {
     expect(() => {
-      validateSchema({ config: schemaWithEmptyTemplates })
+      validateSchema({ schema: schemaWithEmptyTemplates })
     }).toThrow()
   })
   it('fails when a deeply nested field under a template is invalid', () => {
     expect(() => {
-      validateSchema({ config: schemaWithInvalidFiledNesterUnderRichText })
+      validateSchema({
+        schema: schemaWithInvalidFiledNesterUnderRichText as Schema,
+      })
     }).toThrow()
   })
   it('fails when a invalid type is given', () => {
     expect(() => {
-      validateSchema({ config: schemaWithBadType })
+      validateSchema({ schema: schemaWithBadType as Schema })
     }).toThrow()
   })
   it('fails when a invalid configuration for `isTitle` is given', () => {
     expect(() => {
-      validateSchema({ config: schemaWithIsTitleNotValid1 })
+      validateSchema({ schema: schemaWithIsTitleNotValid1 as Schema })
     }).toThrow()
     expect(() => {
-      validateSchema({ config: schemaWithIsTitleNotValid2 })
+      validateSchema({ schema: schemaWithIsTitleNotValid2 as Schema })
     }).toThrow()
   })
   it('passes when a valid configuration for `isTitle` is given', () => {
-    validateSchema({ config: schemaWithIsTitleValid })
+    validateSchema({ schema: schemaWithIsTitleValid as Schema })
     expect(consoleErrMock).not.toHaveBeenCalled()
   })
 })

@@ -1,10 +1,8 @@
-**/*.mdx
-**/*.md
 **/*.gql
 **/*.json
 __generated__
 
-packages/**/*.md
+**/*/admin/**/*.js
 .yarn
 .pnp.js
 .yarnrc.yml
@@ -24,3 +22,6 @@ terraform/**/.terraform
 **/*.tfstate
 # Ignore any .next folder
 **/.next/**
+examples/hugo-quickstart
+**/out.md
+_response.md

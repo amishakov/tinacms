@@ -1,5 +1,766 @@
 # tina-graphql
 
+## 1.3.10
+
+### Patch Changes
+
+- Updated dependencies [[`7994046`](https://github.com/tinacms/tinacms/commit/79940467f97355651d86daace044717179a47734), [`8d24f89`](https://github.com/tinacms/tinacms/commit/8d24f899838b9d5384782f699febd26be65902fd), [`877699d`](https://github.com/tinacms/tinacms/commit/877699d08b3e2c2470742a3acf25d02a95e440b3)]:
+  - @tinacms/graphql@1.5.10
+
+## 1.3.9
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tinacms/graphql@1.5.9
+
+## 1.3.8
+
+### Patch Changes
+
+- [#5276](https://github.com/tinacms/tinacms/pull/5276) [`f90ef4d`](https://github.com/tinacms/tinacms/commit/f90ef4d92ae7b21c8c610d14af9510354a3969c6) Thanks [@Ben0189](https://github.com/Ben0189)! - Updates minor and patch dependencies
+
+- Updated dependencies [[`f90ef4d`](https://github.com/tinacms/tinacms/commit/f90ef4d92ae7b21c8c610d14af9510354a3969c6), [`03bb823`](https://github.com/tinacms/tinacms/commit/03bb8237df87dab9da503818b839d44209263a48)]:
+  - @tinacms/graphql@1.5.8
+
+## 1.3.7
+
+### Patch Changes
+
+- Updated dependencies [[`0daf0b6`](https://github.com/tinacms/tinacms/commit/0daf0b687b36614a1fdf904b1d5125e4c63e81a9)]:
+  - @tinacms/graphql@1.5.7
+
+## 1.3.6
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tinacms/graphql@1.5.6
+
+## 1.3.5
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tinacms/graphql@1.5.5
+
+## 1.3.4
+
+### Patch Changes
+
+- [#4843](https://github.com/tinacms/tinacms/pull/4843) [`4753c9b`](https://github.com/tinacms/tinacms/commit/4753c9b53854d19212229f985bc445b2794fad9a) Thanks [@JackDevAU](https://github.com/JackDevAU)! - ⬆️ Update Minor & Patch Dependencies Versions
+
+- Updated dependencies [[`4753c9b`](https://github.com/tinacms/tinacms/commit/4753c9b53854d19212229f985bc445b2794fad9a)]:
+  - @tinacms/graphql@1.5.4
+
+## 1.3.3
+
+### Patch Changes
+
+- [#4804](https://github.com/tinacms/tinacms/pull/4804) [`d08053e`](https://github.com/tinacms/tinacms/commit/d08053e758b6910afa8ab8952a40984921cccbc4) Thanks [@dependabot](https://github.com/apps/dependabot)! - ⬆️ Updates Typescript to v5.5, @types/node to v22.x, next.js to latest version 14.x, and removes node-fetch
+
+- Updated dependencies [[`d08053e`](https://github.com/tinacms/tinacms/commit/d08053e758b6910afa8ab8952a40984921cccbc4)]:
+  - @tinacms/graphql@1.5.3
+
+## 1.3.2
+
+### Patch Changes
+
+- Updated dependencies [f088b97]
+  - @tinacms/graphql@1.5.2
+
+## 1.3.1
+
+### Patch Changes
+
+- @tinacms/graphql@1.5.1
+
+## 1.3.0
+
+### Minor Changes
+
+- 324950a: Updates Plate Editor to latest version 36.
+
+  - Upgrades all remaining packages `Typescript` to version `^5`
+  - Adds Shadcn/ui styles/colours to our `tinatailwind` config (`packages/@tinacms/cli/src/next/vite/tailwind.ts`)
+  - Replaces some `lodash` deps with either the specific function i.e. `lodash.set` or implements them in a utility file
+  - Updates and removes old version of plate (`plate-headless`) for latest version `^36`
+  - Starts removing and cleaning up some of the old Plate code.
+
+### Patch Changes
+
+- Updated dependencies [324950a]
+  - @tinacms/graphql@1.5.0
+
+## 1.2.40
+
+### Patch Changes
+
+- d9b23fc: Improve reference field selector
+- Updated dependencies [d9b23fc]
+- Updated dependencies [613e9c5]
+  - @tinacms/graphql@1.4.40
+
+## 1.2.39
+
+### Patch Changes
+
+- @tinacms/graphql@1.4.39
+
+## 1.2.38
+
+### Patch Changes
+
+- e58b951: update vulnerable packages so npm audit does not complain
+- 9076d09: update next js version from 12 to 14 in tinacms packages
+- Updated dependencies [f567fc8]
+- Updated dependencies [e58b951]
+- Updated dependencies [9076d09]
+  - @tinacms/graphql@1.4.38
+
+## 1.2.37
+
+### Patch Changes
+
+- @tinacms/graphql@1.4.37
+
+## 1.2.36
+
+### Patch Changes
+
+- 0503072: update ts, remove rimraf, fix types
+- Updated dependencies [76c1a2e]
+- Updated dependencies [0503072]
+- Updated dependencies [dffa355]
+  - @tinacms/graphql@1.4.36
+
+## 1.2.35
+
+### Patch Changes
+
+- Updated dependencies [2e3393ef5]
+  - @tinacms/graphql@1.4.35
+
+## 1.2.34
+
+### Patch Changes
+
+- @tinacms/graphql@1.4.34
+
+## 1.2.33
+
+### Patch Changes
+
+- Updated dependencies [67e7a2d82]
+  - @tinacms/graphql@1.4.33
+
+## 1.2.32
+
+### Patch Changes
+
+- Updated dependencies [1e5c94f05]
+  - @tinacms/graphql@1.4.32
+
+## 1.2.31
+
+### Patch Changes
+
+- Updated dependencies [7779cdbf6]
+- Updated dependencies [031ce05c2]
+  - @tinacms/graphql@1.4.31
+
+## 1.2.30
+
+### Patch Changes
+
+- Updated dependencies [476b9dfbe]
+  - @tinacms/graphql@1.4.30
+
+## 1.2.29
+
+### Patch Changes
+
+- a65ca13f2: ## TinaCMS Self hosted Updates
+
+  ### Changes in the database file
+
+  #### Deprecations and Additions
+
+  - **Deprecated**: `onPut`, `onDelete`, and `level` arguments in `createDatabase`.
+  - **Added**: `databaseAdapter` to replace `level`.
+  - **Added**: `gitProvider` to substitute `onPut` and `onDelete`.
+  - **New Package**: `tinacms-gitprovider-github`, exporting the `GitHubProvider` class.
+  - **Interface Addition**: `gitProvider` added to `@tinacms/graphql`.
+  - **Addition**: Generated database client.
+
+  #### Updated `database.ts` Example
+
+  ```typescript
+  import { createDatabase, createLocalDatabase } from '@tinacms/datalayer'
+  import { MongodbLevel } from 'mongodb-level'
+  import { GitHubProvider } from 'tinacms-gitprovider-github'
+
+  const isLocal = process.env.TINA_PUBLIC_IS_LOCAL === 'true'
+
+  export default isLocal
+    ? createLocalDatabase()
+    : createDatabase({
+        gitProvider: new GitHubProvider({
+          branch: process.env.GITHUB_BRANCH,
+          owner: process.env.GITHUB_OWNER,
+          repo: process.env.GITHUB_REPO,
+          token: process.env.GITHUB_PERSONAL_ACCESS_TOKEN,
+        }),
+        databaseAdapter: new MongodbLevel<string, Record<string, any>>({
+          collectionName: 'tinacms',
+          dbName: 'tinacms',
+          mongoUri: process.env.MONGODB_URI,
+        }),
+        namespace: process.env.GITHUB_BRANCH,
+      })
+  ```
+
+  ### Migrating `database.ts`
+
+  #### a. Replacing `onPut` and `onDelete` with `gitProvider`
+
+  - **GitHubProvider Usage**: Replace `onPut` and `onDelete` with `gitProvider`, using the provided `GitHubProvider` for GitHub.
+
+  ```typescript
+  const gitProvider = new GitHubProvider({
+    branch: process.env.GITHUB_BRANCH,
+    owner: process.env.GITHUB_OWNER,
+    repo: process.env.GITHUB_REPO,
+    token: process.env.GITHUB_PERSONAL_ACCESS_TOKEN,
+  })
+  ```
+
+  - **Custom Git Provider**: Implement the `GitProvider` interface for different git providers.
+
+  If you are not using Github as your git provider, you can implement the `GitProvider` interface to use your own git provider.
+
+  ```typescript
+  class CustomGitProvider implements GitProvider
+      async onPut(key: string, value: string)
+          // ...
+
+      async onDelete(key: string)
+          // ...
+
+
+  const gitProvider = new CustomGitProvider();
+  ```
+
+  #### b. Renaming `level` to `databaseAdapter`
+
+  - **Renaming in Code**: Change `level` to `databaseAdapter` for clarity.
+
+  ```diff
+  createDatabase({
+  -    level: new MongodbLevel<string, Record<string, any>>(...),
+  +    databaseAdapter: new MongodbLevel<string, Record<string, any>>(...),
+  })
+  ```
+
+  #### c. `createLocalDatabase` Function
+
+  - **Usage**: Implement a local database with the `createLocalDatabase` function.
+
+  ```typescript
+  import { createLocalDatabase } from '@tinacms/datalayer'
+  createLocalDatabase(port)
+  ```
+
+  #### d. Consolidated Example
+
+  - **Updated `database.{ts,js}` File**:
+
+  ```typescript
+  import { createDatabase, createLocalDatabase, GitHubProvider } from '@tinacms/datalayer';
+  import { MongodbLevel } from 'mongodb-level';
+  const isLocal = process.env.TINA_PUBLIC_IS_LOCAL === 'true';
+  export default isLocal
+    ? createLocalDatabase()
+    : createDatabase({
+        gitProvider: new GitHubProvider(...),
+        databaseAdapter: new MongodbLevel<string, Record<string, any>>(...),
+      });
+  ```
+
+  ### Summary of Authentication Updates in Config
+
+  #### a. AuthProvider and AbstractAuthProvider
+
+  - **New**: `authProvider` in `defineConfig`.
+  - **Class**: `AbstractAuthProvider` for extending new auth providers.
+  - **Clerk Auth Provider**: New provider added.
+  - **Renaming**: `admin.auth` to `admin.authHooks`.
+  - **Deprecation**: `admin.auth`.
+
+  #### b. Auth Provider in Internal Client and Config
+
+  - **Transition**: From auth functions to `authProvider` class.
+
+  #### c. Migration for Authentication
+
+  - **Previous API**:
+
+  ```javascript
+  defineConfig({
+    admin: {
+      auth: {
+        login() {},
+        logout() {},
+        //...
+      },
+    },
+    //...
+  })
+  ```
+
+  - **New API**:
+
+  ```javascript
+  import { AbstractAuthProvider } from 'tinacms'
+  class CustomAuthProvider extends AbstractAuthProvider {
+    login() {}
+    logout() {}
+    //...
+  }
+  defineConfig({
+    authProvider: new CustomAuthProvider(),
+    //...
+  })
+  ```
+
+  ### TinaCMS Self Hosted backend updates
+
+  - **New:** TinaNodeBackend is exported from `@tinacms/datalayer`. This is used to host the TinaCMS backend in a single function.
+  - **New:** `LocalBackendAuthProvider` is exported from `@tinacms/datalayer`. This is used to host the TinaCMS backend locally.
+
+  - **New:** `AuthJsBackendAuthProvider` is exported from `tinacms-authjs`. This is used to host the TinaCMS backend with AuthJS.
+
+  ### Migrating the TinaCMS backend
+
+  Now, instead of hosting the in /tina/api/gql.ts file, the entire TinaCMS backend (including auth) will be hosted in a single backend function.
+
+  `/api/tina/[...routes].{ts,js}`
+
+  ```typescript
+  import { TinaNodeBackend, LocalBackendAuthProvider } from '@tinacms/datalayer'
+
+  import { TinaAuthJSOptions, AuthJsBackendAuthProvider } from 'tinacms-authjs'
+
+  import databaseClient from '../../../tina/__generated__/databaseClient'
+
+  const isLocal = process.env.TINA_PUBLIC_IS_LOCAL === 'true'
+
+  const handler = TinaNodeBackend({
+    authProvider: isLocal
+      ? LocalBackendAuthProvider()
+      : AuthJsBackendAuthProvider({
+          authOptions: TinaAuthJSOptions({
+            databaseClient: databaseClient,
+            secret: process.env.NEXTAUTH_SECRET,
+          }),
+        }),
+    databaseClient,
+  })
+
+  export default (req, res) => {
+    // Modify the request here if you need to
+    return handler(req, res)
+  }
+  ```
+
+  These changes are put in place to make self hosted TinaCMS easier to use and more flexible.
+
+  Please [check out the docs](https://tina.io/docs/self-hosted/overview) for more information on self hosted TinaCMS.
+
+- Updated dependencies [a65ca13f2]
+  - @tinacms/graphql@1.4.29
+
+## 1.2.28
+
+### Patch Changes
+
+- Updated dependencies [8b8a6c96b]
+  - @tinacms/graphql@1.4.28
+
+## 1.2.27
+
+### Patch Changes
+
+- Updated dependencies [857414612]
+- Updated dependencies [a58c5b12f]
+- Updated dependencies [aec44a7dc]
+  - @tinacms/graphql@1.4.27
+
+## 1.2.26
+
+### Patch Changes
+
+- Updated dependencies [c244d963a]
+- Updated dependencies [3b214ec6b]
+- Updated dependencies [8bd85b15e]
+  - @tinacms/graphql@1.4.26
+
+## 1.2.25
+
+### Patch Changes
+
+- Updated dependencies [1144af060]
+  - @tinacms/graphql@1.4.25
+
+## 1.2.24
+
+### Patch Changes
+
+- @tinacms/graphql@1.4.24
+
+## 1.2.23
+
+### Patch Changes
+
+- @tinacms/graphql@1.4.23
+
+## 1.2.22
+
+### Patch Changes
+
+- bc812441b: Use .mjs extension for ES modules
+- Updated dependencies [0d8a19632]
+- Updated dependencies [bc812441b]
+  - @tinacms/graphql@1.4.22
+
+## 1.2.21
+
+### Patch Changes
+
+- Updated dependencies [94f353822]
+  - @tinacms/graphql@1.4.21
+
+## 1.2.20
+
+### Patch Changes
+
+- @tinacms/graphql@1.4.20
+
+## 1.2.19
+
+### Patch Changes
+
+- Updated dependencies [495108725]
+  - @tinacms/graphql@1.4.19
+
+## 1.2.18
+
+### Patch Changes
+
+- Updated dependencies [e5e29ed58]
+  - @tinacms/graphql@1.4.18
+
+## 1.2.17
+
+### Patch Changes
+
+- @tinacms/graphql@1.4.17
+
+## 1.2.16
+
+### Patch Changes
+
+- Updated dependencies [c385b5615]
+- Updated dependencies [1c78bafc2]
+  - @tinacms/graphql@1.4.16
+
+## 1.2.15
+
+### Patch Changes
+
+- Updated dependencies [a94bf721b]
+- Updated dependencies [52b1762e2]
+  - @tinacms/graphql@1.4.15
+
+## 1.2.14
+
+### Patch Changes
+
+- Updated dependencies [e731ab0c5]
+  - @tinacms/graphql@1.4.14
+
+## 1.2.13
+
+### Patch Changes
+
+- Updated dependencies [ca74add40]
+- Updated dependencies [0f5557d23]
+- Updated dependencies [ff4c1e0f4]
+- Updated dependencies [6fefa56b0]
+  - @tinacms/graphql@1.4.13
+
+## 1.2.12
+
+### Patch Changes
+
+- @tinacms/graphql@1.4.12
+
+## 1.2.11
+
+### Patch Changes
+
+- Updated dependencies [83b19fb8d]
+- Updated dependencies [1c7998b7e]
+  - @tinacms/graphql@1.4.11
+
+## 1.2.10
+
+### Patch Changes
+
+- Updated dependencies [a402c8010]
+  - @tinacms/graphql@1.4.10
+
+## 1.2.9
+
+### Patch Changes
+
+- Updated dependencies [89dcad9d9]
+- Updated dependencies [a0eb72ce0]
+  - @tinacms/graphql@1.4.9
+
+## 1.2.8
+
+### Patch Changes
+
+- Updated dependencies [f14f59a96]
+- Updated dependencies [eeedcfd30]
+- Updated dependencies [7d4be0e51]
+  - @tinacms/graphql@1.4.8
+
+## 1.2.7
+
+### Patch Changes
+
+- Updated dependencies [65d53d5b9]
+- Updated dependencies [40d15644f]
+- Updated dependencies [a6786cc73]
+  - @tinacms/graphql@1.4.7
+
+## 1.2.6
+
+### Patch Changes
+
+- Updated dependencies [75d5ed359]
+  - @tinacms/graphql@1.4.6
+
+## 1.2.5
+
+### Patch Changes
+
+- Updated dependencies [67c7a48b8]
+  - @tinacms/graphql@1.4.5
+
+## 1.2.4
+
+### Patch Changes
+
+- Updated dependencies [ae3abe927]
+  - @tinacms/graphql@1.4.4
+
+## 1.2.3
+
+### Patch Changes
+
+- Updated dependencies [40d908a79]
+- Updated dependencies [02a555c39]
+  - @tinacms/graphql@1.4.3
+
+## 1.2.2
+
+### Patch Changes
+
+- Updated dependencies [af5c32eae]
+- Updated dependencies [1f9f83718]
+- Updated dependencies [a70204500]
+  - @tinacms/graphql@1.4.2
+
+## 1.2.1
+
+### Patch Changes
+
+- Updated dependencies [e9514656c]
+- Updated dependencies [9a8074889]
+- Updated dependencies [13b809ff5]
+  - @tinacms/graphql@1.4.1
+
+## 1.2.0
+
+### Minor Changes
+
+- 76c984bcc: Use new API endpoint in content api reqests
+- 202cd714d: Internal updates to the CLI
+
+### Patch Changes
+
+- Updated dependencies [76c984bcc]
+- Updated dependencies [5809796cf]
+- Updated dependencies [e3b58c03e]
+- Updated dependencies [0553035f5]
+- Updated dependencies [202cd714d]
+  - @tinacms/graphql@1.4.0
+
+## 1.1.6
+
+### Patch Changes
+
+- @tinacms/graphql@1.3.5
+
+## 1.1.5
+
+### Patch Changes
+
+- Updated dependencies [b095d06a9]
+  - @tinacms/graphql@1.3.4
+
+## 1.1.4
+
+### Patch Changes
+
+- f831dcf4f: security: update some deps
+- Updated dependencies [0a5297800]
+- Updated dependencies [5427d03c6]
+  - @tinacms/graphql@1.3.3
+
+## 1.1.3
+
+### Patch Changes
+
+- Updated dependencies [aa0250979]
+  - @tinacms/graphql@1.3.2
+
+## 1.1.2
+
+### Patch Changes
+
+- Updated dependencies [3bbb621cd]
+  - @tinacms/graphql@1.3.1
+
+## 1.1.1
+
+### Patch Changes
+
+- Updated dependencies [a8457798a]
+- Updated dependencies [94b8bb6e0]
+- Updated dependencies [e15d82c2e]
+- Updated dependencies [e732906b6]
+  - @tinacms/graphql@1.3.0
+
+## 1.1.0
+
+### Minor Changes
+
+- efd56e769: Replace Store with AbstractLevel in Database. Update CLI to allow user to configure Database.
+
+### Patch Changes
+
+- efd56e769: Remove license headers
+- Updated dependencies [efd56e769]
+- Updated dependencies [efd56e769]
+- Updated dependencies [50f86caed]
+  - @tinacms/graphql@1.2.0
+
+## 1.0.1
+
+### Patch Changes
+
+- e7c404bcf: Support remote path configuration for separate content repos
+
+  Tina now supports serving content from a separate Git repo.
+
+  ### Local development workflow
+
+  To enable this during local development, point
+  this config at the root of the content repo.
+
+  > NOTE: Relative paths are fine to use here, but make sure it's relative to the `.tina/config` file
+
+  ```ts
+  localContentPath: process.env.REMOTE_ROOT_PATH // eg. '../../my-content-repo'
+  ```
+
+  ### Production workflow
+
+  For production, your config should use the `clientId`, `branch`, and `token` values that are associated with your _content repo_.
+
+## 1.0.0
+
+### Major Changes
+
+- 958d10c82: Tina 1.0 Release
+
+  Make sure you have updated to th "iframe" path: https://tina.io/blog/upgrading-to-iframe/
+
+## 0.2.4
+
+### Patch Changes
+
+- 0513ae416: Increase defualt file limit from 10 to 50
+
+## 0.2.3
+
+### Patch Changes
+
+- 1fc0e339e: Fix issue where if a subfolder exists in a collection that matches a document, editing that document creates null commits
+
+## 0.2.2
+
+### Patch Changes
+
+- dcbc57c86: update key generation to gracefully handle null / undefined field values by skipping indexing
+- ae06f4a96: Fixed audit cmd to use datalayer
+
+## 0.2.1
+
+### Patch Changes
+
+- cf0f531a1: limit db key values to 100 characters
+
+## 0.2.0
+
+### Minor Changes
+
+- 4daf15b36: Updated matching logic to only return the correct extension.
+
+  This means if you are using any other files besides `.md` the format must be provided in the schema.
+
+  ```ts
+  // .tina/schema.ts
+
+  import { defineSchema } from 'tinacms'
+
+  const schema = defineSchema({
+    collections: [
+      {
+        name: 'page',
+        path: 'content/page',
+        label: 'Page',
+        // Need to provide the format if the file being used (default is `.md`)
+        format: 'mdx',
+        fields: [
+          //...
+        ],
+      },
+    ],
+  })
+  //...
+
+  export default schema
+  ```
+
+### Patch Changes
+
+- b348f8b6b: Experimental isomorphic git bridge implementation
+
 ## 0.1.1
 
 ### Patch Changes
@@ -382,7 +1143,7 @@
   cms.fields.add({
     ...TextFieldPlugin, // spread existing text plugin
     name: 'myText',
-    validate: value => {
+    validate: (value) => {
       someValidationLogic(value)
     },
   })
@@ -399,7 +1160,7 @@
   1. The data is not a required property. That is to say, if I have a blog post document, and "category" is an optional field, we'll need to make sure we factor that into how we render our page:
 
   ```tsx
-  const MyPage = props => {
+  const MyPage = (props) => {
     return (
       <>
         <h2>{props.getPostDocument.data.title}</h2>
@@ -464,8 +1225,8 @@
   It's possible for Tina's editing capabilities to introduce an invalid state during edits to list items. Imagine the scenario where you are iterating through an array of objects, and each object has a categories array on it we'd like to render:
 
   ```tsx
-  const MyPage = props => {
-    return props.blocks.map(block => {
+  const MyPage = (props) => {
+    return props.blocks.map((block) => {
       return (
         <>
           <h2>{block.categories.split(',')}</h2>
@@ -735,9 +1496,12 @@
   ```md
   ---
   ---
+
   myBlocks:
-    - template: hero
-      title: Hello
+
+  - template: hero
+    title: Hello
+
   ---
   ```
 
@@ -746,9 +1510,12 @@
   ```md
   ---
   ---
+
   myBlocks:
-    - \_template: hero
-      title: Hello
+
+  - \_template: hero
+    title: Hello
+
   ---
   ```
 

@@ -1,36 +1,25 @@
 /**
-Copyright 2021 Forestry.io Holdings, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+
 */
 
 import {
-  parse,
-  isLeafType,
-  visit,
-  GraphQLNamedType,
-  GraphQLSchema,
-  Visitor,
-  ASTKindToNode,
-  GraphQLField,
-  DocumentNode,
-  ASTNode,
+  type ASTKindToNode,
+  type ASTNode,
+  type DocumentNode,
+  type FieldNode,
   getNamedType,
-  TypeInfo,
-  visitWithTypeInfo,
-  FieldNode,
-  InlineFragmentNode,
+  type GraphQLField,
+  type GraphQLNamedType,
   GraphQLObjectType,
+  type GraphQLSchema,
   GraphQLUnionType,
-  print,
+  type InlineFragmentNode,
+  isLeafType,
   isScalarType,
+  TypeInfo,
+  visit,
+  type Visitor,
+  visitWithTypeInfo,
 } from 'graphql'
 import set from 'lodash.set'
 

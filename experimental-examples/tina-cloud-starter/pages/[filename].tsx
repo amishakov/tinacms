@@ -1,45 +1,41 @@
-import { Blocks } from "../components/blocks";
-import { client } from "../.tina/client";
-import { useTina } from "tinacms/dist/edit-state";
-import { Layout } from "../components/layout";
+import { InferGetStaticPropsType } from 'next'
+import { Blocks } from '../components/blocks-renderer'
+import { useTina } from 'tinacms/dist/react'
+import { Layout } from '../components/layout'
+import { client } from '../.tina/__generated__/client'
+import React from 'react'
 
 export default function HomePage(
-  props: AsyncReturnType<typeof getStaticProps>["props"]
+  props: InferGetStaticPropsType<typeof getStaticProps>
 ) {
-  const { data } = useTina({
-    query: props.query,
-    variables: props.variables,
-    data: props.data,
-  });
+  const { data } = useTina(props)
+
   return (
-    <Layout rawData={data} data={data.global}>
-      <Blocks {...data.pages} />
+    <Layout rawData={data} data={data.global as any}>
+      <Blocks {...data.page} />
     </Layout>
-  );
+  )
 }
 
 export const getStaticProps = async ({ params }) => {
-  const tinaProps = await client.queries.ContentQuery({
+  const tinaProps = await client.queries.contentQuery({
     relativePath: `${params.filename}.md`,
-  });
+  })
   return {
     props: {
       data: tinaProps.data,
       query: tinaProps.query,
       variables: tinaProps.variables,
     },
-  };
-};
+  }
+}
 
 export const getStaticPaths = async () => {
-  const pagesListData = await client.queries.pagesConnection();
+  const pagesListData = await client.queries.pageConnection()
   return {
-    paths: pagesListData.data.pagesConnection.edges.map((page) => ({
+    paths: pagesListData.data.pageConnection.edges.map((page) => ({
       params: { filename: page.node._sys.filename },
     })),
     fallback: false,
-  };
-};
-
-export type AsyncReturnType<T extends (...args: any) => Promise<any>> =
-  T extends (...args: any) => Promise<infer R> ? R : any;
+  }
+}

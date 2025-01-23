@@ -1,28 +1,36 @@
 /**
-Copyright 2021 Forestry.io Holdings, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+
 */
 
-import { MediaListError } from '@tinacms/toolkit'
+interface MediaListErrorConfig {
+  title: string
+  message: string
+  docsLink: string
+}
+
+class MediaListError extends Error {
+  public ERR_TYPE = 'MediaListError'
+  public title: string
+  public docsLink: string
+
+  constructor(config: MediaListErrorConfig) {
+    super(config.message)
+    this.title = config.title
+    this.docsLink = config.docsLink
+  }
+}
 
 export const E_DEFAULT = new MediaListError({
   title: 'An Error Occurred',
   message: 'Something went wrong fetching your media from Cloudinary.',
-  docsLink: 'https://tina.io/packages/next-tinacms-cloudinary',
+  docsLink: 'https://tina.io/docs/reference/media/external/cloudinary',
 })
 
 export const E_UNAUTHORIZED = new MediaListError({
   title: 'Unauthorized',
   message: "You don't have access to this resource.",
-  docsLink: 'https://tina.io/packages/next-tinacms-cloudinary',
+  docsLink:
+    'https://tina.io/docs/reference/media/external/cloudinary/#set-up-api-routes-nextjs-example',
 })
 
 export const E_CONFIG = new MediaListError({
@@ -43,7 +51,7 @@ export const E_BAD_ROUTE = new MediaListError({
   title: 'Bad Route',
   message: 'The Cloudinary API route is missing or misconfigured.',
   docsLink:
-    'https://tina.io/packages/next-tinacms-cloudinary/#set-up-api-routes',
+    'https://tina.io/docs/reference/media/external/cloudinary/#set-up-api-routes-nextjs-example',
 })
 
 export const interpretErrorMessage = (message: string) => {

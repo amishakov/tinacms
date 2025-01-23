@@ -1,25 +1,19 @@
 /**
-Copyright 2021 Forestry.io Holdings, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+
 */
 
+import path from 'node:path'
 import cors from 'cors'
-import http from 'http'
+import http from 'node:http'
 import express from 'express'
 import { altairExpress } from 'altair-express-middleware'
 // @ts-ignore
 import bodyParser from 'body-parser'
-import { mediaRouter } from './routes'
+import type { Database } from '@tinacms/graphql'
+import { createMediaRouter } from './routes'
+import { parseMediaFolder } from '../utils'
 
-export const gqlServer = async (database) => {
+export const gqlServer = async (database, verbose: boolean) => {
   // This is lazily required so we can update the module
   // without having to restart the server
   const gqlPackage = require('@tinacms/graphql')
@@ -60,11 +54,40 @@ export const gqlServer = async (database) => {
       database,
       query,
       variables,
+      verbose,
     })
     return res.json(result)
   })
 
-  app.use('/media', mediaRouter)
+  const db: Database = database
+  const schema = await db.getSchema()
+  const mediaPaths = schema?.schema?.config?.media?.tina
+
+  app.use(
+    '/media',
+    createMediaRouter({
+      rootPath: db.bridge.rootPath,
+      publicFolder: parseMediaFolder(mediaPaths?.publicFolder || ''),
+      mediaRoot: parseMediaFolder(mediaPaths?.mediaRoot || ''),
+    })
+  )
+
+  // We could add this back in if we wanted to level and graphql to be the same server on the same port. We can not add this in right now because the graphql server starts after the database is indexed
+  // const levelHost = new ManyLevelHost(
+  //   new MemoryLevel<string, Record<string, any>>({
+  //     valueEncoding: 'json',
+  //   })
+  // )
+  // // Level TCP server
+  // server.on('connection', (socket) => {
+  //   pipeline(socket, levelHost.createRpcStream(), socket, () => {
+  //     // Disconnected
+  //     pipeline(socket, levelHost.createRpcStream(), socket, () => {
+  //       // Disconnected
+  //       // socket.destroy()
+  //     })
+  //   })
+  // })
 
   return server
 }

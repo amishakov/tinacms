@@ -16,6 +16,11 @@ type SystemInfo {
   collection: Collection!
 }
 
+type Folder {
+  name: String!
+  path: String!
+}
+
 type PageInfo {
   hasPreviousPage: Boolean!
   hasNextPage: Boolean!
@@ -87,20 +92,20 @@ type Collection {
   matches: String
   templates: [JSON]
   fields: [JSON]
-  documents(before: String, after: String, first: Float, last: Float, sort: String, filter: DocumentFilter): DocumentConnection!
+  documents(before: String, after: String, first: Float, last: Float, sort: String, filter: DocumentFilter, folder: String): DocumentConnection!
 }
 
-union DocumentNode = Movie | Director | CrewCostumeDesigner | CrewStuntPerson | Actor | Relative
+union DocumentNode = Movie | Director | CrewCostumeDesigner | CrewStuntPerson | Actor | Relative | Folder
 
 union MovieDirector = Director
 
 type Movie implements Node & Document {
   title: String
   releaseDate: String
-  rating: Float!
   archived: Boolean
-  genre: String
   director: MovieDirector
+  genre: String
+  rating: Float!
   body: String
   id: ID!
   _sys: SystemInfo!
@@ -122,6 +127,15 @@ input DatetimeFilter {
   in: [String]
 }
 
+input BooleanFilter {
+  eq: Boolean
+  exists: Boolean
+}
+
+input MovieDirectorFilter {
+  director: DirectorFilter
+}
+
 input NumberFilter {
   lt: Float
   lte: Float
@@ -132,22 +146,13 @@ input NumberFilter {
   in: [Float]
 }
 
-input BooleanFilter {
-  eq: Boolean
-  exists: Boolean
-}
-
-input MovieDirectorFilter {
-  director: DirectorFilter
-}
-
 input MovieFilter {
   title: StringFilter
   releaseDate: DatetimeFilter
-  rating: NumberFilter
   archived: BooleanFilter
-  genre: StringFilter
   director: MovieDirectorFilter
+  genre: StringFilter
+  rating: NumberFilter
   body: StringFilter
 }
 
@@ -300,7 +305,7 @@ type RelativeConnection implements Connection {
 
 type Mutation {
   addPendingDocument(collection: String!, relativePath: String!, template: String): DocumentNode!
-  updateDocument(collection: String, relativePath: String!, params: DocumentMutation!): DocumentNode!
+  updateDocument(collection: String, relativePath: String!, params: DocumentUpdateMutation!): DocumentNode!
   deleteDocument(collection: String, relativePath: String!): DocumentNode!
   createDocument(collection: String, relativePath: String!, params: DocumentMutation!): DocumentNode!
   updateMovie(relativePath: String!, params: MovieMutation!): Movie!
@@ -315,6 +320,15 @@ type Mutation {
   createRelative(relativePath: String!, params: RelativeMutation!): Relative!
 }
 
+input DocumentUpdateMutation {
+  movie: MovieMutation
+  director: DirectorMutation
+  crew: CrewMutation
+  actor: ActorMutation
+  relative: RelativeMutation
+  relativePath: String
+}
+
 input DocumentMutation {
   movie: MovieMutation
   director: DirectorMutation
@@ -326,10 +340,10 @@ input DocumentMutation {
 input MovieMutation {
   title: String
   releaseDate: String
-  rating: Float
   archived: Boolean
-  genre: String
   director: String
+  genre: String
+  rating: Float
   body: String
 }
 

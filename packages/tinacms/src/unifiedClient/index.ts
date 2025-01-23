@@ -1,30 +1,20 @@
-/**
-Copyright 2021 Forestry.io Holdings, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import fetchPonyfill from 'fetch-ponyfill'
-import UrlPattern from 'url-pattern'
-
-const { fetch, Headers } = fetchPonyfill()
+import AsyncLock from 'async-lock'
+import type { GraphQLError } from 'graphql'
+import type { Config } from '@tinacms/schema-tools'
+import type { Cache } from '../cache/index'
 
 export const TINA_HOST = 'content.tinajs.io'
 export interface TinaClientArgs<GenQueries = Record<string, unknown>> {
   url: string
   token?: string
-  queries?: (client: TinaClient<GenQueries>) => GenQueries
+  queries: (client: TinaClient<GenQueries>) => GenQueries
+  errorPolicy?: Config['client']['errorPolicy']
+  cacheDir?: string
 }
 export type TinaClientRequestArgs = {
   variables?: Record<string, any>
   query: string
+  errorPolicy?: 'throw' | 'include'
 } & Partial<Omit<TinaClientArgs, 'queries'>>
 
 export type TinaClientURLParts = {
@@ -33,30 +23,70 @@ export type TinaClientURLParts = {
   branch: string
   isLocalClient: boolean
 }
+
 export class TinaClient<GenQueries> {
   public apiUrl: string
   public readonlyToken?: string
-  /**
-   *
-   */
-  public queries?: GenQueries
-  constructor({ token, url, queries }: TinaClientArgs<GenQueries>) {
+  public queries: GenQueries
+  public errorPolicy: Config['client']['errorPolicy']
+  initialized = false
+  cacheLock: AsyncLock | undefined
+  cacheDir: string
+  cache: Cache
+
+  constructor({
+    token,
+    url,
+    queries,
+    errorPolicy,
+    cacheDir,
+  }: TinaClientArgs<GenQueries>) {
     this.apiUrl = url
-    this.readonlyToken = token
-    if (queries) {
-      this.queries = queries(this)
+    this.readonlyToken = token?.trim()
+    this.queries = queries(this)
+    this.errorPolicy = errorPolicy || 'throw'
+    this.cacheDir = cacheDir || ''
+  }
+
+  async init() {
+    if (this.initialized) {
+      return
     }
+    try {
+      if (
+        this.cacheDir &&
+        typeof window === 'undefined' &&
+        typeof require !== 'undefined'
+      ) {
+        const { NodeCache } = await import('../cache/node-cache')
+        this.cache = await NodeCache(this.cacheDir)
+        this.cacheLock = new AsyncLock()
+      }
+    } catch (e) {
+      console.error(e)
+    }
+    this.initialized = true
   }
 
   public async request<DataType extends Record<string, any> = any>(
-    args: TinaClientRequestArgs
-  ): Promise<{ data: DataType; query: string }> {
-    let data: DataType = {} as DataType
+    { errorPolicy, ...args }: TinaClientRequestArgs,
+    options: { fetchOptions?: Parameters<typeof fetch>[1] }
+  ) {
+    await this.init()
+    const errorPolicyDefined = errorPolicy || this.errorPolicy
     const headers = new Headers()
     if (this.readonlyToken) {
       headers.append('X-API-KEY', this.readonlyToken)
     }
     headers.append('Content-Type', 'application/json')
+    if (options?.fetchOptions) {
+      if (options?.fetchOptions?.headers) {
+        Object.entries(options.fetchOptions.headers).forEach(([key, value]) => {
+          headers.append(key, value)
+        })
+      }
+    }
+    const { headers: _, ...providedFetchOptions } = options?.fetchOptions || {}
 
     const bodyString = JSON.stringify({
       query: args.query,
@@ -64,66 +94,76 @@ export class TinaClient<GenQueries> {
     })
     const url = args?.url || this.apiUrl
 
-    const res = await fetch(url, {
+    const optionsObject: Parameters<typeof fetch>[1] = {
       method: 'POST',
       headers,
       body: bodyString,
       redirect: 'follow',
-    })
-    const json = await res.json()
-    if (json.errors) {
-      throw new Error(
-        `Unable to fetch, errors: \n\t${json.errors
-          .map((error) => error.message)
-          .join('\n')}`
+      ...providedFetchOptions,
+    }
+
+    let key = ''
+    let result: { data: DataType; errors: GraphQLError[] | null; query: string }
+    if (this.cache) {
+      key = this.cache.makeKey(bodyString)
+      await this.cacheLock.acquire(key, async () => {
+        result = await this.cache.get(key)
+        if (!result) {
+          result = await requestFromServer<DataType>(
+            url,
+            args.query,
+            optionsObject,
+            errorPolicyDefined
+          )
+          await this.cache.set(key, result)
+        }
+      })
+    } else {
+      result = await requestFromServer<DataType>(
+        url,
+        args.query,
+        optionsObject,
+        errorPolicyDefined
       )
     }
-    return {
-      data: json?.data as DataType,
-      query: args.query,
-    }
+
+    return result
   }
+}
 
-  public parseURL = (overrideUrl: string): TinaClientURLParts => {
-    const url = overrideUrl || this.apiUrl
-    if (url.includes('localhost')) {
-      return {
-        host: 'localhost',
-        branch: null,
-        isLocalClient: true,
-        clientId: null,
-      }
+async function requestFromServer<DataType extends Record<string, any> = any>(
+  url: string,
+  query: string,
+  optionsObject: RequestInit,
+  errorPolicyDefined: 'throw' | 'include'
+) {
+  const res = await fetch(url, optionsObject)
+  if (!res.ok) {
+    let additionalInfo = ''
+    if (res.status === 401) {
+      additionalInfo =
+        'Please check that your client ID, URL and read only token are configured properly.'
     }
 
-    const params = new URL(url)
-    const pattern = new UrlPattern('/content/:clientId/github/*', {
-      escapeChar: ' ',
-    })
-    const result = pattern.match(params.pathname)
-    const branch = result?._
-    const clientId = result?.clientId
-
-    if (!branch || !clientId) {
-      throw new Error(
-        `Invalid URL format provided. Expected: https://${TINA_HOST}/content/<ClientID>/github/<Branch> but but received ${url}`
-      )
-    }
-
-    // TODO if !result || !result.clientId || !result.branch, throw an error
-
-    if (params.host !== TINA_HOST) {
-      throw new Error(
-        `The only supported hosts are ${TINA_HOST} or localhost, but received ${params.host}.`
-      )
-    }
-
-    return {
-      host: params.host,
-      clientId,
-      branch,
-      isLocalClient: false,
-    }
+    throw new Error(
+      `Server responded with status code ${res.status}, ${res.statusText}. ${
+        additionalInfo ? additionalInfo : ''
+      } Please see our FAQ for more information: https://tina.io/docs/errors/faq/`
+    )
   }
+  const json = await res.json()
+  if (json.errors && errorPolicyDefined === 'throw') {
+    throw new Error(
+      `Unable to fetch, please see our FAQ for more information: https://tina.io/docs/errors/faq/
+      Errors: \n\t${json.errors.map((error) => error.message).join('\n')}`
+    )
+  }
+  const result = {
+    data: json?.data as DataType,
+    errors: (json?.errors || null) as GraphQLError[] | null,
+    query,
+  }
+  return result
 }
 
 export function createClient<GenQueries>(args: TinaClientArgs<GenQueries>) {

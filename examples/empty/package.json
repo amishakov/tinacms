@@ -1,21 +1,24 @@
 {
-  "name": "starter-empty",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
-  },
-  "dependencies": {
-    "next": "12.0.3",
-    "react": "17.0.2",
-    "react-dom": "17.0.2",
-    "react-is": "^17.0.2"
-  },
-  "devDependencies": {
-    "@types/node": "^17.0.21",
-    "eslint": "7",
-    "eslint-config-next": "12.0.3"
-  }
+	"name": "starter-empty",
+	"private": true,
+	"scripts": {
+		"dev": "next dev",
+		"start": "next start",
+		"lint": "next lint",
+		"init-dev": "tinacms init"
+	},
+	"dependencies": {
+		"@tinacms/cli": "workspace:*",
+		"next": "^14.2.18",
+		"react": "^18.3.1",
+		"react-dom": "^18.3.1",
+		"react-is": "^17.0.2",
+		"tinacms": "workspace:*",
+		"typescript": "^5.6.3"
+	},
+	"devDependencies": {
+		"@types/node": "^22.9.0",
+		"eslint": "7"
+	},
+	"version": "0.0.21"
 }
